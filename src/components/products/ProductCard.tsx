@@ -86,10 +86,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           {/* Price */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground line-through">
-              {formatPrice(product.oldPrice)}
+              {formatPrice(product.price)}
             </span>
             <span className="text-lg font-bold text-primary">
-              {formatPrice(product.newPrice)}
+              {formatPrice(product.price - (product.price * 10) / 100)}
             </span>
           </div>
         </div>

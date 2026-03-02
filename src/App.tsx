@@ -14,11 +14,15 @@ import Signup from "./pages/Signup";
 import Profile from "./pages/Profile";
 import Orders from "./pages/Orders";
 import NotFound from "./pages/NotFound";
+import { MidrangeAuthProvider } from "./context/MidrangeAuthContext";
+import Checkout from "./pages/Checkout";
+import OrderSuccess from "./pages/OrderSuccess";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <MidrangeAuthProvider>
     <CartProvider>
       <TooltipProvider>
         <Toaster />
@@ -28,18 +32,25 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/mid" element={<Index />} />
             <Route path="/products" element={<Products />} />
+            <Route path="/categories" element={<Products />} />
+            <Route path="/categories/:categorySlug" element={<Products />} />
+            <Route path="/categories/:categorySlug/:subSlug" element={<Products />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/cart" element={<Cart />} />
+            <Route path="/checkout" element={<Checkout />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/orders" element={<Orders />} />
+            <Route path="/order-success/:orderId" element={<OrderSuccess/>} />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </CartProvider>
+    </MidrangeAuthProvider>
   </QueryClientProvider>
 );
 

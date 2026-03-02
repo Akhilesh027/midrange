@@ -1,24 +1,22 @@
 import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Youtube } from 'lucide-react';
+import logo from '../../Image/JSGALORE.png'
 
 export const Footer = () => {
   return (
     <footer className="bg-surface-1 border-t border-border/30 mt-auto">
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Brand */}
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center font-bold text-primary-foreground text-xl">
-                JS
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center font-bold text-primary-foreground text-xl">
+                <img src={logo} alt="" />
               </div>
             </Link>
             <p className="text-muted-foreground text-sm leading-relaxed">
               Mid-range furniture handcrafted for modern Indian homes. Quality, style, and affordability combined.
             </p>
           </div>
-
-          {/* Quick Links */}
           <div>
             <h4 className="text-foreground font-semibold mb-4">Quick Links</h4>
             <ul className="space-y-2">
