@@ -66,15 +66,15 @@ const statusPill = (status: string) => {
   const base = "px-3 py-1 rounded-full text-xs font-medium";
 
   if (s === "delivered")
-    return <span className={`${base} bg-green-500/15 text-green-600`}>Delivered</span>;
+    return <span className={`${base} bg-green-500/15 text-green-300`}>Delivered</span>;
   if (s === "shipped")
-    return <span className={`${base} bg-blue-500/15 text-blue-600`}>Shipped</span>;
+    return <span className={`${base} bg-blue-500/15 text-blue-300`}>Shipped</span>;
   if (s === "confirmed" || s === "approved")
-    return <span className={`${base} bg-primary/10 text-primary`}>{s.toUpperCase()}</span>;
+    return <span className={`${base} bg-[#eef4df]/15 text-[#eef4df]`}>{s.toUpperCase()}</span>;
   if (s === "cancelled" || s === "rejected")
-    return <span className={`${base} bg-red-500/15 text-red-600`}>{s.toUpperCase()}</span>;
+    return <span className={`${base} bg-red-500/15 text-red-300`}>{s.toUpperCase()}</span>;
 
-  return <span className={`${base} bg-muted text-muted-foreground`}>{s ? s.toUpperCase() : "—"}</span>;
+  return <span className={`${base} bg-white/10 text-[#d6dfbd]`}>{s ? s.toUpperCase() : "—"}</span>;
 };
 
 export default function MyOrders() {
@@ -120,96 +120,108 @@ export default function MyOrders() {
 
   return (
     <Layout>
-      {/* Breadcrumb */}
-      <nav className="bg-surface-1 py-3 border-b border-border/30">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center gap-2 text-sm">
-            <Link to="/" className="text-primary hover:underline">
-              Home
-            </Link>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">My Orders</span>
+      <div className="min-h-screen bg-[#556b2f] text-[#f4f7ec]">
+        {/* Breadcrumb */}
+        <nav className="bg-[#4b5e29] py-3 border-b border-white/10">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center gap-2 text-sm">
+              <Link to="/" className="text-[#eef4df] hover:underline">
+                Home
+              </Link>
+              <ChevronRight className="w-4 h-4 text-[#d6dfbd]" />
+              <span className="text-[#d6dfbd]">My Orders</span>
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-muted-foreground" />
-            <h1 className="text-xl font-semibold text-foreground">My Orders</h1>
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-[#d6dfbd]" />
+              <h1 className="text-xl font-semibold text-[#f4f7ec]">My Orders</h1>
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={loadOrders}
+              disabled={loading}
+              className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+            >
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Refresh
+            </Button>
           </div>
 
-          <Button variant="outline" onClick={loadOrders} disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            Refresh
-          </Button>
-        </div>
+          {loading ? (
+            <div className="py-10 flex items-center gap-2 text-[#d6dfbd]">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Loading orders...
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-6 text-[#d6dfbd]">
+              You don’t have any orders yet.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {orders.map((o) => {
+                const first = o.items?.[0];
+                const name = first?.name || first?.productSnapshot?.name || "Product";
+                const image = first?.image || first?.productSnapshot?.image || "";
+                const qty = first?.quantity || 1;
+                const unit = Number(first?.finalPrice ?? first?.price ?? first?.productSnapshot?.price ?? 0);
+                const total = Number(o.totals?.total ?? o.totalAmount ?? o.pricing?.total ?? unit * qty);
 
-        {loading ? (
-          <div className="py-10 flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Loading orders...
-          </div>
-        ) : orders.length === 0 ? (
-          <div className="bg-card rounded-xl border border-border/50 p-6 text-muted-foreground">
-            You don’t have any orders yet.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {orders.map((o) => {
-              const first = o.items?.[0];
-              const name = first?.name || first?.productSnapshot?.name || "Product";
-              const image = first?.image || first?.productSnapshot?.image || "";
-              const qty = first?.quantity || 1;
-              const unit = Number(first?.finalPrice ?? first?.price ?? first?.productSnapshot?.price ?? 0);
-              const total = Number(o.totals?.total ?? o.totalAmount ?? o.pricing?.total ?? unit * qty);
+                return (
+                  <div key={o._id} className="bg-[#4b5e29] rounded-xl border border-white/10 p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                      <div>
+                        <p className="text-sm text-[#d6dfbd]">
+                          Order {o.orderNumber ? `#${o.orderNumber}` : getOrderNumber(o._id)}
+                        </p>
+                        <p className="text-xs text-[#d6dfbd]">Placed on {formatDate(o.createdAt)}</p>
+                        <p className="text-xs text-[#d6dfbd] mt-1">
+                          Payment: {(o.payment?.method || "-").toUpperCase()} /{" "}
+                          {(o.payment?.status || "-").toUpperCase()}
+                        </p>
+                      </div>
 
-              return (
-                <div key={o._id} className="bg-card rounded-xl border border-border/50 p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Order {o.orderNumber ? `#${o.orderNumber}` : getOrderNumber(o._id)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Placed on {formatDate(o.createdAt)}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Payment: {(o.payment?.method || "-").toUpperCase()} /{" "}
-                        {(o.payment?.status || "-").toUpperCase()}
-                      </p>
+                      <div className="flex items-center gap-3">
+                        {statusPill(o.status)}
+                        <span className="text-sm font-semibold text-[#f4f7ec]">{formatPrice(total)}</span>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      {statusPill(o.status)}
-                      <span className="text-sm font-semibold">{formatPrice(total)}</span>
+                    <div className="flex gap-4 items-center">
+                      <div className="w-16 h-16 rounded-lg border border-white/10 bg-white/5 overflow-hidden flex items-center justify-center">
+                        {image ? (
+                          <img src={image} alt={name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xs text-[#d6dfbd]">No Image</span>
+                        )}
+                      </div>
+
+                      <div className="flex-1">
+                        <p className="font-medium text-[#f4f7ec]">{name}</p>
+                        <p className="text-sm text-[#d6dfbd]">
+                          Qty: {qty} × {formatPrice(unit)}
+                        </p>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                      >
+                        <Link to={`/order/${o._id}`}>View Details</Link>
+                      </Button>
                     </div>
                   </div>
-
-                  <div className="flex gap-4 items-center">
-                    <div className="w-16 h-16 rounded-lg border border-border/50 bg-muted overflow-hidden flex items-center justify-center">
-                      {image ? (
-                        <img src={image} alt={name} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">No Image</span>
-                      )}
-                    </div>
-
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Qty: {qty} × {formatPrice(unit)}
-                      </p>
-                    </div>
-
-                    <Button variant="outline" size="sm" asChild>
-                      <Link to={`/order/${o._id}`}>View Details</Link>
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </Layout>
   );

@@ -157,10 +157,10 @@ function formatDate(d?: string) {
 
 function statusBadge(status?: string) {
   const s = (status || "placed").toLowerCase();
-  if (s === "delivered") return "bg-green-500/10 text-green-600";
-  if (s === "shipped" || s === "in_transit") return "bg-blue-500/10 text-blue-600";
-  if (s === "cancelled") return "bg-destructive/10 text-destructive";
-  return "bg-primary/10 text-primary";
+  if (s === "delivered") return "bg-green-500/10 text-green-300";
+  if (s === "shipped" || s === "in_transit") return "bg-blue-500/10 text-blue-300";
+  if (s === "cancelled") return "bg-red-500/10 text-red-300";
+  return "bg-[#eef4df]/10 text-[#eef4df]";
 }
 
 export default function Profile() {
@@ -240,7 +240,9 @@ export default function Profile() {
       }
 
       const addrJson: ApiResponse<Address[]> = await addrRes.json().catch(() => ({}));
-      setAddresses(addrRes.ok && addrJson.success !== false && Array.isArray(addrJson.data) ? addrJson.data : []);
+      setAddresses(
+        addrRes.ok && addrJson.success !== false && Array.isArray(addrJson.data) ? addrJson.data : []
+      );
 
       const ordersJson: ApiResponse<Order[]> = await ordersRes.json().catch(() => ({}));
       if (ordersRes.ok && ordersJson.success !== false) {
@@ -308,8 +310,10 @@ export default function Profile() {
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center py-28">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="min-h-screen bg-[#556b2f] text-[#f4f7ec]">
+          <div className="flex items-center justify-center py-28">
+            <Loader2 className="w-8 h-8 animate-spin text-[#eef4df]" />
+          </div>
         </div>
       </Layout>
     );
@@ -318,11 +322,16 @@ export default function Profile() {
   if (!user) {
     return (
       <Layout>
-        <div className="container mx-auto px-4 py-16 text-center">
-          <p className="text-muted-foreground mb-4">Unable to load profile.</p>
-          <Button variant="gold" onClick={() => navigate("/login")}>
-            Go to Login
-          </Button>
+        <div className="min-h-screen bg-[#556b2f] text-[#f4f7ec]">
+          <div className="container mx-auto px-4 py-16 text-center">
+            <p className="text-[#d6dfbd] mb-4">Unable to load profile.</p>
+            <Button
+              className="bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]"
+              onClick={() => navigate("/login")}
+            >
+              Go to Login
+            </Button>
+          </div>
         </div>
       </Layout>
     );
@@ -330,383 +339,447 @@ export default function Profile() {
 
   return (
     <Layout>
-      {/* Breadcrumb */}
-      <nav className="bg-surface-1 py-3 border-b border-border/30">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center gap-2 text-sm">
-            <Link to="/" className="text-primary hover:underline">
-              Home
-            </Link>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">My Account</span>
-          </div>
-        </div>
-      </nav>
-
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <aside className="lg:col-span-1">
-            <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
-              <div className="p-6 border-b border-border/30 text-center">
-                <div className="relative inline-block mb-4">
-                  <img
-                    src={safeAvatar(user)}
-                    alt={safeName(user)}
-                    className="w-24 h-24 rounded-full object-cover border-4 border-primary/20"
-                  />
-                  <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
-                    <Camera className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-center gap-2">
-                  <h3 className="font-semibold text-foreground">{safeName(user)}</h3>
-                  {user.isVerified ? (
-                    <span className="inline-flex items-center gap-1 text-xs bg-green-500/10 text-green-600 px-2 py-0.5 rounded-full">
-                      <CheckCircle2 className="w-3 h-3" /> Verified
-                    </span>
-                  ) : null}
-                </div>
-
-                <p className="text-sm text-muted-foreground">{safeEmail(user)}</p>
-
-                <div className="mt-3 flex flex-wrap gap-2 justify-center">
-                  <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                    {(user.membershipBadge || "Standard") + " Member"}
-                  </span>
-                  <span className="text-xs px-2 py-1 rounded-full bg-amber-500/10 text-amber-600">
-                    {user.loyaltyPoints || 0} pts
-                  </span>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3 text-left">
-                  <div className="bg-surface-1 rounded-lg p-3 border border-border/40">
-                    <p className="text-xs text-muted-foreground">Orders</p>
-                    <p className="text-lg font-bold text-foreground">
-                      {user.totalOrders ?? orders.length ?? 0}
-                    </p>
-                  </div>
-                  <div className="bg-surface-1 rounded-lg p-3 border border-border/40">
-                    <p className="text-xs text-muted-foreground">Spent</p>
-                    <p className="text-lg font-bold text-foreground">
-                      {formatINR(user.totalSpent || 0)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <nav className="p-2">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      setActiveTab(tab.id as any);
-                      if (tab.id === "orders") setOrdersPage(1);
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                      activeTab === tab.id
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
-                  >
-                    <tab.icon className="w-5 h-5" />
-                    <span className="text-sm font-medium">{tab.label}</span>
-                  </button>
-                ))}
-
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-destructive hover:bg-destructive/10 transition-colors mt-2"
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span className="text-sm font-medium">Logout</span>
-                </button>
-              </nav>
+      <div className="min-h-screen bg-[#556b2f] text-[#f4f7ec]">
+        {/* Breadcrumb */}
+        <nav className="bg-[#4b5e29] py-3 border-b border-white/10">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center gap-2 text-sm">
+              <Link to="/" className="text-[#eef4df] hover:underline">
+                Home
+              </Link>
+              <ChevronRight className="w-4 h-4 text-[#d6dfbd]" />
+              <span className="text-[#d6dfbd]">My Account</span>
             </div>
-          </aside>
+          </div>
+        </nav>
 
-          {/* Content */}
-          <main className="lg:col-span-3">
-            {/* PROFILE */}
-            {activeTab === "profile" && (
-              <div className="bg-card rounded-xl border border-border/50 p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-foreground">Personal Information</h2>
-                  <Button variant="outline" size="sm" onClick={reloadAll}>
-                    Refresh
-                  </Button>
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid lg:grid-cols-4 gap-8">
+            {/* Sidebar */}
+            <aside className="lg:col-span-1">
+              <div className="bg-[#4b5e29] rounded-xl border border-white/10 overflow-hidden">
+                <div className="p-6 border-b border-white/10 text-center">
+                  <div className="relative inline-block mb-4">
+                    <img
+                      src={safeAvatar(user)}
+                      alt={safeName(user)}
+                      className="w-24 h-24 rounded-full object-cover border-4 border-[#eef4df]/20"
+                    />
+                    <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#eef4df] flex items-center justify-center text-[#3f4f22]">
+                      <Camera className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2">
+                    <h3 className="font-semibold text-[#f4f7ec]">{safeName(user)}</h3>
+                    {user.isVerified ? (
+                      <span className="inline-flex items-center gap-1 text-xs bg-green-500/10 text-green-300 px-2 py-0.5 rounded-full">
+                        <CheckCircle2 className="w-3 h-3" /> Verified
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <p className="text-sm text-[#d6dfbd]">{safeEmail(user)}</p>
+
+                  <div className="mt-3 flex flex-wrap gap-2 justify-center">
+                    <span className="text-xs px-2 py-1 rounded-full bg-[#eef4df]/10 text-[#eef4df]">
+                      {(user.membershipBadge || "Standard") + " Member"}
+                    </span>
+                    <span className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-300">
+                      {user.loyaltyPoints || 0} pts
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-left">
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                      <p className="text-xs text-[#d6dfbd]">Orders</p>
+                      <p className="text-lg font-bold text-[#f4f7ec]">
+                        {user.totalOrders ?? orders.length ?? 0}
+                      </p>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                      <p className="text-xs text-[#d6dfbd]">Spent</p>
+                      <p className="text-lg font-bold text-[#f4f7ec]">
+                        {formatINR(user.totalSpent || 0)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm text-muted-foreground mb-2">Full Name</label>
-                    <Input value={safeName(user)} disabled className="bg-secondary" />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-muted-foreground mb-2">Email</label>
-                    <Input value={safeEmail(user)} disabled className="bg-secondary" />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-muted-foreground mb-2">Phone</label>
-                    <Input value={user.phone || ""} disabled className="bg-secondary" />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-muted-foreground mb-2">Membership</label>
-                    <Input value={(user.membershipLevel || "standard").toString()} disabled className="bg-secondary" />
-                  </div>
-                </div>
+                <nav className="p-2">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id as any);
+                        if (tab.id === "orders") setOrdersPage(1);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                        activeTab === tab.id
+                          ? "bg-[#eef4df]/10 text-[#eef4df]"
+                          : "text-[#d6dfbd] hover:bg-white/10 hover:text-[#f4f7ec]"
+                      }`}
+                    >
+                      <tab.icon className="w-5 h-5" />
+                      <span className="text-sm font-medium">{tab.label}</span>
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left text-red-300 hover:bg-red-500/10 transition-colors mt-2"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <span className="text-sm font-medium">Logout</span>
+                  </button>
+                </nav>
               </div>
-            )}
+            </aside>
 
-            {/* ORDERS (3 per page) */}
-            {activeTab === "orders" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-xl font-semibold text-foreground">My Orders</h2>
-                  <Button variant="outline" size="sm" onClick={reloadAll}>
-                    Refresh
-                  </Button>
-                </div>
-
-                {orders.length === 0 ? (
-                  <div className="bg-card rounded-xl border border-border/50 p-6 text-muted-foreground">
-                    No orders found.
+            {/* Content */}
+            <main className="lg:col-span-3">
+              {/* PROFILE */}
+              {activeTab === "profile" && (
+                <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-semibold text-[#f4f7ec]">Personal Information</h2>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={reloadAll}
+                      className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                    >
+                      Refresh
+                    </Button>
                   </div>
-                ) : (
-                  <>
-                    {paginatedOrders.map((order) => {
-                      const first = order.items?.[0];
-                      const moreCount = Math.max(0, (order.items?.length || 0) - 1);
 
-                      return (
-                        <div
-                          key={order._id}
-                          className="bg-card rounded-xl border border-border/50 overflow-hidden"
-                        >
-                          <div className="bg-surface-1 p-4 flex flex-wrap items-center justify-between gap-4 border-b border-border/30">
-                            <div className="flex flex-wrap items-center gap-4">
-                              <div>
-                                <p className="text-sm text-muted-foreground">Order ID</p>
-                                <p className="font-semibold text-foreground">
-                                  #{order._id.slice(-6).toUpperCase()}
-                                </p>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm text-[#d6dfbd] mb-2">Full Name</label>
+                      <Input
+                        value={safeName(user)}
+                        disabled
+                        className="bg-white/10 border-white/20 text-[#f7faef]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-[#d6dfbd] mb-2">Email</label>
+                      <Input
+                        value={safeEmail(user)}
+                        disabled
+                        className="bg-white/10 border-white/20 text-[#f7faef]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-[#d6dfbd] mb-2">Phone</label>
+                      <Input
+                        value={user.phone || ""}
+                        disabled
+                        className="bg-white/10 border-white/20 text-[#f7faef]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-[#d6dfbd] mb-2">Membership</label>
+                      <Input
+                        value={(user.membershipLevel || "standard").toString()}
+                        disabled
+                        className="bg-white/10 border-white/20 text-[#f7faef]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ORDERS (3 per page) */}
+              {activeTab === "orders" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold text-[#f4f7ec]">My Orders</h2>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={reloadAll}
+                      className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                    >
+                      Refresh
+                    </Button>
+                  </div>
+
+                  {orders.length === 0 ? (
+                    <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-6 text-[#d6dfbd]">
+                      No orders found.
+                    </div>
+                  ) : (
+                    <>
+                      {paginatedOrders.map((order) => {
+                        const first = order.items?.[0];
+                        const moreCount = Math.max(0, (order.items?.length || 0) - 1);
+
+                        return (
+                          <div
+                            key={order._id}
+                            className="bg-[#4b5e29] rounded-xl border border-white/10 overflow-hidden"
+                          >
+                            <div className="bg-white/5 p-4 flex flex-wrap items-center justify-between gap-4 border-b border-white/10">
+                              <div className="flex flex-wrap items-center gap-4">
+                                <div>
+                                  <p className="text-sm text-[#d6dfbd]">Order ID</p>
+                                  <p className="font-semibold text-[#f4f7ec]">
+                                    #{order._id.slice(-6).toUpperCase()}
+                                  </p>
+                                </div>
+
+                                <div className="hidden sm:block h-8 w-px bg-white/10" />
+
+                                <div>
+                                  <p className="text-sm text-[#d6dfbd]">Placed on</p>
+                                  <p className="font-medium text-[#f4f7ec]">
+                                    {formatDate(order.createdAt)}
+                                  </p>
+                                </div>
+
+                                <div className="hidden sm:block h-8 w-px bg-white/10" />
+
+                                <div>
+                                  <p className="text-sm text-[#d6dfbd]">Total</p>
+                                  <p className="font-semibold text-[#eef4df]">
+                                    {formatINR(order.totals?.total || 0)}
+                                  </p>
+                                </div>
                               </div>
 
-                              <div className="hidden sm:block h-8 w-px bg-border/50" />
-
-                              <div>
-                                <p className="text-sm text-muted-foreground">Placed on</p>
-                                <p className="font-medium text-foreground">{formatDate(order.createdAt)}</p>
-                              </div>
-
-                              <div className="hidden sm:block h-8 w-px bg-border/50" />
-
-                              <div>
-                                <p className="text-sm text-muted-foreground">Total</p>
-                                <p className="font-semibold text-primary">{formatINR(order.totals?.total || 0)}</p>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-sm font-medium ${statusBadge(
+                                    order.status
+                                  )}`}
+                                >
+                                  {order.status || "placed"}
+                                </span>
+                                <span className="px-3 py-1 rounded-full text-sm font-medium bg-white/10 text-[#d6dfbd]">
+                                  {order.payment?.method || "COD"}
+                                </span>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusBadge(order.status)}`}>
-                                {order.status || "placed"}
-                              </span>
-                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-muted text-muted-foreground">
-                                {order.payment?.method || "COD"}
-                              </span>
-                            </div>
-                          </div>
+                            <div className="p-4">
+                              <div className="flex gap-4 items-center">
+                                <img
+                                  src={first?.image || "https://via.placeholder.com/100"}
+                                  alt={first?.name || "Product"}
+                                  className="w-20 h-20 rounded-lg object-cover"
+                                />
+                                <div className="flex-1">
+                                  <p className="font-medium text-[#f4f7ec]">
+                                    {first?.name || "Product"}
+                                    {moreCount > 0 ? (
+                                      <span className="text-sm text-[#d6dfbd]">
+                                        {" "}
+                                        (+{moreCount} more)
+                                      </span>
+                                    ) : null}
+                                  </p>
 
-                          <div className="p-4">
-                            <div className="flex gap-4 items-center">
-                              <img
-                                src={first?.image || "https://via.placeholder.com/100"}
-                                alt={first?.name || "Product"}
-                                className="w-20 h-20 rounded-lg object-cover"
-                              />
-                              <div className="flex-1">
-                                <p className="font-medium text-foreground">
-                                  {first?.name || "Product"}
-                                  {moreCount > 0 ? (
-                                    <span className="text-sm text-muted-foreground"> (+{moreCount} more)</span>
+                                  <p className="text-sm text-[#d6dfbd]">
+                                    Qty: {first?.quantity || 1} ×{" "}
+                                    {formatINR(first?.finalPrice || first?.price || 0)}
+                                  </p>
+
+                                  {order.addressSnapshot?.city ? (
+                                    <p className="text-xs text-[#d6dfbd] mt-1">
+                                      Deliver to:{" "}
+                                      <span className="text-[#f4f7ec] font-medium">
+                                        {order.addressSnapshot.city}, {order.addressSnapshot.state}
+                                      </span>
+                                    </p>
                                   ) : null}
-                                </p>
 
-                                <p className="text-sm text-muted-foreground">
-                                  Qty: {first?.quantity || 1} × {formatINR(first?.finalPrice || first?.price || 0)}
-                                </p>
-
-                                {order.addressSnapshot?.city ? (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Deliver to:{" "}
-                                    <span className="text-foreground font-medium">
-                                      {order.addressSnapshot.city}, {order.addressSnapshot.state}
+                                  <p className="text-xs text-[#d6dfbd] mt-1">
+                                    Payment:{" "}
+                                    <span className="text-[#f4f7ec] font-medium">
+                                      {order.payment?.status || "pending"}
                                     </span>
                                   </p>
-                                ) : null}
+                                </div>
 
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Payment:{" "}
-                                  <span className="text-foreground font-medium">
-                                    {order.payment?.status || "pending"}
-                                  </span>
-                                </p>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => navigate(`/order-success/${order._id}`)}
+                                  className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                                >
+                                  View
+                                </Button>
                               </div>
-
-                              <Button variant="outline" size="sm" onClick={() => navigate(`/order-success/${order._id}`)}>
-                                View
-                              </Button>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
 
-                    {/* Pagination Controls */}
-                    <div className="bg-card rounded-xl border border-border/50 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                      <p className="text-sm text-muted-foreground">
-                        Showing{" "}
-                        <span className="text-foreground font-medium">
-                          {(ordersPage - 1) * ORDERS_PER_PAGE + 1}–
-                          {Math.min(ordersPage * ORDERS_PER_PAGE, orders.length)}
-                        </span>{" "}
-                        of <span className="text-foreground font-medium">{orders.length}</span> orders
-                      </p>
+                      {/* Pagination Controls */}
+                      <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <p className="text-sm text-[#d6dfbd]">
+                          Showing{" "}
+                          <span className="text-[#f4f7ec] font-medium">
+                            {(ordersPage - 1) * ORDERS_PER_PAGE + 1}–
+                            {Math.min(ordersPage * ORDERS_PER_PAGE, orders.length)}
+                          </span>{" "}
+                          of <span className="text-[#f4f7ec] font-medium">{orders.length}</span> orders
+                        </p>
 
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={ordersPage <= 1}
-                          onClick={() => setOrdersPage((p) => Math.max(1, p - 1))}
-                        >
-                          Prev
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={ordersPage <= 1}
+                            onClick={() => setOrdersPage((p) => Math.max(1, p - 1))}
+                            className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22] disabled:opacity-50"
+                          >
+                            Prev
+                          </Button>
 
-                        <div className="hidden sm:flex items-center gap-2">
-                          {pageButtons.map((p) => (
-                            <Button
-                              key={p}
-                              variant={p === ordersPage ? "gold" : "outline"}
-                              size="sm"
-                              onClick={() => setOrdersPage(p)}
-                            >
-                              {p}
-                            </Button>
-                          ))}
-                        </div>
-
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={ordersPage >= ordersTotalPages}
-                          onClick={() => setOrdersPage((p) => Math.min(ordersTotalPages, p + 1))}
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* ADDRESSES */}
-            {activeTab === "addresses" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold text-foreground">Saved Addresses</h2>
-                  <Button variant="outline" size="sm" onClick={() => navigate("/checkout")}>
-                    Add New Address
-                  </Button>
-                </div>
-
-                {addresses.length === 0 ? (
-                  <div className="bg-card rounded-xl border border-border/50 p-6 text-muted-foreground">
-                    No addresses saved.
-                  </div>
-                ) : (
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {addresses.map((a) => (
-                      <div
-                        key={a._id}
-                        className={`bg-card rounded-xl border p-5 ${
-                          a.isDefault ? "border-primary/50" : "border-border/50"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            {a.isDefault ? (
-                              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium">
-                                Default
-                              </span>
-                            ) : null}
-                            <span className="font-medium text-foreground">{a.fullName}</span>
+                          <div className="hidden sm:flex items-center gap-2">
+                            {pageButtons.map((p) => (
+                              <Button
+                                key={p}
+                                variant={p === ordersPage ? "gold" : "outline"}
+                                size="sm"
+                                onClick={() => setOrdersPage(p)}
+                                className={
+                                  p === ordersPage
+                                    ? "bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]"
+                                    : "border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                                }
+                              >
+                                {p}
+                              </Button>
+                            ))}
                           </div>
 
-                          {!a.isDefault ? (
-                            <Button variant="ghost" size="sm" onClick={() => setDefaultAddress(a._id)}>
-                              Set Default
-                            </Button>
-                          ) : null}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={ordersPage >= ordersTotalPages}
+                            onClick={() => setOrdersPage((p) => Math.min(ordersTotalPages, p + 1))}
+                            className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22] disabled:opacity-50"
+                          >
+                            Next
+                          </Button>
                         </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
-                        <p className="text-muted-foreground text-sm leading-relaxed">
-                          {a.line1}
-                          {a.line2 ? `, ${a.line2}` : ""}
-                          {a.landmark ? `, ${a.landmark}` : ""}
-                          <br />
-                          {a.city}, {a.state} - {a.pincode}
-                          <br />
-                          Phone: {a.phone}
+              {/* ADDRESSES */}
+              {activeTab === "addresses" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-[#f4f7ec]">Saved Addresses</h2>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate("/checkout")}
+                      className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                    >
+                      Add New Address
+                    </Button>
+                  </div>
+
+                  {addresses.length === 0 ? (
+                    <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-6 text-[#d6dfbd]">
+                      No addresses saved.
+                    </div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {addresses.map((a) => (
+                        <div
+                          key={a._id}
+                          className={`bg-[#4b5e29] rounded-xl border p-5 ${
+                            a.isDefault ? "border-[#eef4df]/50" : "border-white/10"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              {a.isDefault ? (
+                                <span className="px-2 py-0.5 rounded bg-[#eef4df]/10 text-[#eef4df] text-xs font-medium">
+                                  Default
+                                </span>
+                              ) : null}
+                              <span className="font-medium text-[#f4f7ec]">{a.fullName}</span>
+                            </div>
+
+                            {!a.isDefault ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDefaultAddress(a._id)}
+                                className="text-[#eef4df] hover:text-[#f4f7ec]"
+                              >
+                                Set Default
+                              </Button>
+                            ) : null}
+                          </div>
+
+                          <p className="text-[#d6dfbd] text-sm leading-relaxed">
+                            {a.line1}
+                            {a.line2 ? `, ${a.line2}` : ""}
+                            {a.landmark ? `, ${a.landmark}` : ""}
+                            <br />
+                            {a.city}, {a.state} - {a.pincode}
+                            <br />
+                            Phone: {a.phone}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* WISHLIST */}
+              {activeTab === "wishlist" && (
+                <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-6">
+                  <h2 className="text-xl font-semibold text-[#f4f7ec] mb-4">My Wishlist</h2>
+                  <p className="text-[#d6dfbd]">Your wishlist is empty.</p>
+                </div>
+              )}
+
+              {/* PAYMENTS */}
+              {activeTab === "payments" && (
+                <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-6">
+                  <h2 className="text-xl font-semibold text-[#f4f7ec] mb-4">Payment Methods</h2>
+                  <p className="text-[#d6dfbd]">No saved payment methods.</p>
+                </div>
+              )}
+
+              {/* SETTINGS */}
+              {activeTab === "settings" && (
+                <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-6">
+                  <h2 className="text-xl font-semibold text-[#f4f7ec] mb-6">Account Settings</h2>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between py-3 border-b border-white/10">
+                      <div>
+                        <p className="font-medium text-[#f4f7ec]">Email Notifications</p>
+                        <p className="text-sm text-[#d6dfbd]">
+                          Receive updates about orders and promotions
                         </p>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* WISHLIST */}
-            {activeTab === "wishlist" && (
-              <div className="bg-card rounded-xl border border-border/50 p-6">
-                <h2 className="text-xl font-semibold text-foreground mb-4">My Wishlist</h2>
-                <p className="text-muted-foreground">Your wishlist is empty.</p>
-              </div>
-            )}
-
-            {/* PAYMENTS */}
-            {activeTab === "payments" && (
-              <div className="bg-card rounded-xl border border-border/50 p-6">
-                <h2 className="text-xl font-semibold text-foreground mb-4">Payment Methods</h2>
-                <p className="text-muted-foreground">No saved payment methods.</p>
-              </div>
-            )}
-
-            {/* SETTINGS */}
-            {activeTab === "settings" && (
-              <div className="bg-card rounded-xl border border-border/50 p-6">
-                <h2 className="text-xl font-semibold text-foreground mb-6">Account Settings</h2>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between py-3 border-b border-border/30">
-                    <div>
-                      <p className="font-medium text-foreground">Email Notifications</p>
-                      <p className="text-sm text-muted-foreground">Receive updates about orders and promotions</p>
+                      <input type="checkbox" defaultChecked className="accent-[#eef4df]" />
                     </div>
-                    <input type="checkbox" defaultChecked className="accent-primary" />
-                  </div>
-                  <div className="flex items-center justify-between py-3 border-b border-border/30">
-                    <div>
-                      <p className="font-medium text-foreground">SMS Alerts</p>
-                      <p className="text-sm text-muted-foreground">Get delivery updates via SMS</p>
+                    <div className="flex items-center justify-between py-3 border-b border-white/10">
+                      <div>
+                        <p className="font-medium text-[#f4f7ec]">SMS Alerts</p>
+                        <p className="text-sm text-[#d6dfbd]">Get delivery updates via SMS</p>
+                      </div>
+                      <input type="checkbox" defaultChecked className="accent-[#eef4df]" />
                     </div>
-                    <input type="checkbox" defaultChecked className="accent-primary" />
                   </div>
                 </div>
-              </div>
-            )}
-          </main>
+              )}
+            </main>
+          </div>
         </div>
       </div>
     </Layout>

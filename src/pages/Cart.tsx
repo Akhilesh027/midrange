@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ChevronRight,
@@ -31,15 +31,23 @@ async function apiFetch(path: string, options: RequestInit = {}) {
 }
 
 type ApplyCouponResponse = {
-  valid: boolean;
+  valid?: boolean;
+  success?: boolean;
   message?: string;
   coupon?: {
-    couponId: string;
+    couponId?: string;
+    id?: string;
     code: string;
     type: "percentage" | "flat" | "free_shipping";
     value: number;
     maxDiscount?: number;
     minOrder?: number;
+    applyTo?: "all_categories" | "selected_categories";
+    categories?: Array<{
+      id?: string;
+      name?: string;
+      slug?: string;
+    }>;
   };
   discount?: number;
   shippingDiscount?: number;
@@ -52,7 +60,7 @@ function getSavedUserId(): string | null {
     const raw = localStorage.getItem(LS_USER_KEY);
     if (!raw) return null;
     const u = JSON.parse(raw);
-    return u?.id ? String(u.id) : null;
+    return u?.id ? String(u.id) : u?._id ? String(u._id) : null;
   } catch {
     return null;
   }
@@ -69,7 +77,6 @@ const Cart = () => {
       minimumFractionDigits: 0,
     }).format(price);
 
-  // ✅ Coupon state
   const [couponCode, setCouponCode] = useState("");
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponApplied, setCouponApplied] =
@@ -77,17 +84,16 @@ const Cart = () => {
   const [discount, setDiscount] = useState(0);
   const [shippingDiscount, setShippingDiscount] = useState(0);
 
-  // ✅ Base charges
   const shippingBase = totalPrice > 10000 ? 0 : 499;
   const shipping = Math.max(0, shippingBase - shippingDiscount);
 
-  // ✅ Tax on discounted subtotal + shipping
   const taxableAmount = Math.max(0, totalPrice - discount) + shipping;
   const tax = Math.round(taxableAmount * 0.18);
 
   const finalTotal = Math.max(0, totalPrice - discount) + shipping + tax;
 
-  // ✅ Restore coupon from storage
+  const userId = getSavedUserId();
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(`${WEBSITE}_coupon`);
@@ -116,15 +122,110 @@ const Cart = () => {
     localStorage.removeItem(`${WEBSITE}_coupon`);
   };
 
-  const userId = getSavedUserId();
+  // ✅ build rich cart item payload for category-specific coupons
+  const buildCouponItemsPayload = () => {
+    return items.map((item: any) => {
+      const product = item?.product || {};
+      const snap = item?.productSnapshot || {};
+      const qty = Number(item?.quantity || 1);
 
-  // ✅ Apply coupon via backend
+      const unitPrice = Number(
+        product?.price ??
+          snap?.afterDiscount ??
+          snap?.finalPrice ??
+          snap?.salesPrice ??
+          snap?.price ??
+          0
+      );
+
+      return {
+        productId: item?.productId || item?.product?.id || item?.product?._id,
+        quantity: qty,
+        price: unitPrice,
+        lineTotal: unitPrice * qty,
+
+        categoryId:
+          item?.categoryId ||
+          product?.categoryId ||
+          snap?.categoryId ||
+          product?.subcategoryId ||
+          snap?.subcategoryId ||
+          (typeof product?.category === "object"
+            ? product?.category?._id || product?.category?.id
+            : undefined) ||
+          (typeof snap?.category === "object"
+            ? snap?.category?._id || snap?.category?.id
+            : undefined) ||
+          (typeof product?.subcategory === "object"
+            ? product?.subcategory?._id || product?.subcategory?.id
+            : undefined) ||
+          (typeof snap?.subcategory === "object"
+            ? snap?.subcategory?._id || snap?.subcategory?.id
+            : undefined) ||
+          (typeof product?.category === "string" ? product.category : undefined) ||
+          (typeof snap?.category === "string" ? snap.category : undefined) ||
+          (typeof product?.subcategory === "string" ? product.subcategory : undefined) ||
+          (typeof snap?.subcategory === "string" ? snap.subcategory : undefined),
+
+        category: product?.category ?? snap?.category ?? undefined,
+
+        subcategoryId:
+          product?.subcategoryId ||
+          snap?.subcategoryId ||
+          (typeof product?.subcategory === "object"
+            ? product?.subcategory?._id || product?.subcategory?.id
+            : undefined) ||
+          (typeof snap?.subcategory === "object"
+            ? snap?.subcategory?._id || snap?.subcategory?.id
+            : undefined),
+
+        subcategory: product?.subcategory ?? snap?.subcategory ?? undefined,
+
+        product: {
+          categoryId:
+            product?.categoryId ||
+            snap?.categoryId ||
+            (typeof product?.category === "object"
+              ? product?.category?._id || product?.category?.id
+              : undefined) ||
+            (typeof snap?.category === "object"
+              ? snap?.category?._id || snap?.category?.id
+              : undefined),
+          category: product?.category ?? snap?.category,
+          subcategoryId:
+            product?.subcategoryId ||
+            snap?.subcategoryId ||
+            (typeof product?.subcategory === "object"
+              ? product?.subcategory?._id || product?.subcategory?.id
+              : undefined) ||
+            (typeof snap?.subcategory === "object"
+              ? snap?.subcategory?._id || snap?.subcategory?.id
+              : undefined),
+          subcategory: product?.subcategory ?? snap?.subcategory,
+          price: unitPrice,
+        },
+
+        productSnapshot: {
+          categoryId: snap?.categoryId,
+          category: snap?.category,
+          subcategoryId: snap?.subcategoryId,
+          subcategory: snap?.subcategory,
+          price: snap?.price,
+          finalPrice: snap?.finalPrice,
+          afterDiscount: snap?.afterDiscount,
+        },
+      };
+    });
+  };
+
   const applyCouponInternal = async (codeRaw: string, silent = false) => {
     const code = codeRaw.trim().toUpperCase();
+
     if (!code) {
       if (!silent) toast.error("Enter coupon code");
       return;
     }
+
     if (items.length === 0) {
       if (!silent) toast.error("Cart is empty");
       return;
@@ -137,9 +238,10 @@ const Cart = () => {
         method: "POST",
         body: JSON.stringify({
           code,
-          cartTotal: Number(totalPrice) || 0, // ✅ subtotal only
-          shipping: Number(shippingBase) || 0, // ✅ base shipping
+          cartTotal: Number(totalPrice) || 0,
+          shipping: Number(shippingBase) || 0,
           userId: userId || undefined,
+          items: buildCouponItemsPayload(), // ✅ required for category coupons
         }),
       });
 
@@ -155,14 +257,12 @@ const Cart = () => {
       }
 
       const data: ApplyCouponResponse = json?.data || json;
-
-      // NOTE: your backend returns { success:true, coupon:{...}, discount, shippingDiscount }
-      // Some of your types use "valid". We'll support both.
       const backendCoupon = data?.coupon || json?.coupon;
       const backendDiscount = Number(data?.discount ?? json?.discount ?? 0);
-      const backendShippingDiscount = Number(data?.shippingDiscount ?? json?.shippingDiscount ?? 0);
+      const backendShippingDiscount = Number(
+        data?.shippingDiscount ?? json?.shippingDiscount ?? 0
+      );
 
-      // If backend doesn't return "valid", assume success when res.ok
       if (!backendCoupon) {
         setCouponApplied(null);
         setDiscount(0);
@@ -172,18 +272,32 @@ const Cart = () => {
         return;
       }
 
-      setCouponApplied(backendCoupon);
+      const normalizedCoupon = {
+        couponId: backendCoupon?.couponId || backendCoupon?.id,
+        id: backendCoupon?.id,
+        code: backendCoupon.code,
+        type: backendCoupon.type,
+        value: backendCoupon.value,
+        maxDiscount: backendCoupon.maxDiscount,
+        minOrder: backendCoupon.minOrder,
+        applyTo: backendCoupon.applyTo,
+        categories: backendCoupon.categories || [],
+      };
+
+      setCouponApplied(normalizedCoupon);
       setDiscount(backendDiscount);
       setShippingDiscount(backendShippingDiscount);
 
       persistCoupon({
-        code: backendCoupon?.code || code,
-        coupon: backendCoupon,
+        code: normalizedCoupon.code || code,
+        coupon: normalizedCoupon,
         discount: backendDiscount,
         shippingDiscount: backendShippingDiscount,
       });
 
-      if (!silent) toast.success(`Coupon applied: ${backendCoupon?.code || code}`);
+      if (!silent) {
+        toast.success(`Coupon applied: ${normalizedCoupon.code || code}`);
+      }
     } catch (e: any) {
       if (!silent) toast.error(e?.message || "Failed to apply coupon");
     } finally {
@@ -204,14 +318,13 @@ const Cart = () => {
     toast.message("Coupon removed");
   };
 
-  // ✅ Re-check coupon if cart total changes
+  // ✅ re-check coupon whenever price/cart changes
   useEffect(() => {
     if (!couponApplied?.code) return;
     applyCouponInternal(couponApplied.code, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalPrice, shippingBase]);
+  }, [totalPrice, shippingBase, items.length]);
 
-  // ✅ PROCEED TO CHECKOUT: send coupon + amounts
   const handleProceedToCheckout = () => {
     if (items.length === 0) return;
 
@@ -219,14 +332,14 @@ const Cart = () => {
       navigate("/checkout", {
         state: {
           coupon: {
-            couponId: couponApplied.couponId,
+            couponId: couponApplied.couponId || couponApplied.id,
+            id: couponApplied.id,
             code: couponApplied.code,
             type: couponApplied.type,
             value: couponApplied.value,
           },
           discount,
           shippingDiscount,
-          // optional: for display only
           cartTotal: totalPrice,
           shippingBase,
           shipping,
@@ -237,23 +350,33 @@ const Cart = () => {
       return;
     }
 
-    // no coupon
     navigate("/checkout");
   };
+
+  const cartCount = useMemo(
+    () => items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0),
+    [items]
+  );
 
   if (items.length === 0) {
     return (
       <Layout>
-        <div className="container mx-auto px-4 py-16">
-          <div className="max-w-md mx-auto text-center">
-            <ShoppingBag className="w-24 h-24 text-muted-foreground mx-auto mb-6" />
-            <h1 className="text-2xl font-bold text-foreground mb-4">Your Cart is Empty</h1>
-            <p className="text-muted-foreground mb-8">
-              Looks like you haven&apos;t added any items to your cart yet.
-            </p>
-            <Button asChild variant="gold" size="lg">
-              <Link to="/products">Continue Shopping</Link>
-            </Button>
+        <div className="min-h-screen bg-[#556b2f] text-[#f4f7ec]">
+          <div className="container mx-auto px-4 py-16">
+            <div className="max-w-md mx-auto text-center">
+              <ShoppingBag className="w-24 h-24 text-[#d6dfbd] mx-auto mb-6" />
+              <h1 className="text-2xl font-bold text-[#f4f7ec] mb-4">Your Cart is Empty</h1>
+              <p className="text-[#d6dfbd] mb-8">
+                Looks like you haven&apos;t added any items to your cart yet.
+              </p>
+              <Button
+                asChild
+                className="bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]"
+                size="lg"
+              >
+                <Link to="/products">Continue Shopping</Link>
+              </Button>
+            </div>
           </div>
         </div>
       </Layout>
@@ -262,204 +385,257 @@ const Cart = () => {
 
   return (
     <Layout>
-      {/* Breadcrumb */}
-      <nav className="bg-surface-1 py-3 border-b border-border/30">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center gap-2 text-sm">
-            <Link to="/" className="text-primary hover:underline">
-              Home
-            </Link>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Cart</span>
+      <div className="min-h-screen bg-[#556b2f] text-[#f4f7ec]">
+        <nav className="bg-[#4b5e29] py-3 border-b border-white/10">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center gap-2 text-sm">
+              <Link to="/" className="text-[#eef4df] hover:underline">
+                Home
+              </Link>
+              <ChevronRight className="w-4 h-4 text-[#d6dfbd]" />
+              <span className="text-[#d6dfbd]">Cart</span>
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
 
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-8">Your Cart</h1>
+        <div className="container mx-auto px-4 py-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#f4f7ec] mb-2">Your Cart</h1>
+          <p className="text-sm text-[#d6dfbd] mb-8">
+            {cartCount} item{cartCount > 1 ? "s" : ""} in your cart
+          </p>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Cart Items */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
-              <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 bg-surface-1 border-b border-border/50 text-sm font-medium text-muted-foreground">
-                <div className="col-span-6">Product</div>
-                <div className="col-span-2 text-center">Price</div>
-                <div className="col-span-2 text-center">Quantity</div>
-                <div className="col-span-2 text-right">Total</div>
-              </div>
+          <div className="grid lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-[#4b5e29] rounded-xl border border-white/10 overflow-hidden">
+                <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 bg-[#3f4f22] border-b border-white/10 text-sm font-medium text-[#d6dfbd]">
+                  <div className="col-span-6">Product</div>
+                  <div className="col-span-2 text-center">Price</div>
+                  <div className="col-span-2 text-center">Quantity</div>
+                  <div className="col-span-2 text-right">Total</div>
+                </div>
 
-              {items.map((item) => (
-                <div
-                  key={item.product.id}
-                  className="grid grid-cols-1 md:grid-cols-12 gap-4 px-4 md:px-6 py-4 border-b border-border/30 last:border-b-0"
-                >
-                  <div className="md:col-span-6 flex gap-4">
-                    <Link to={`/product/${item.product.id}`} className="flex-shrink-0">
-                      <img
-                        src={item.product.image}
-                        alt={item.product.name}
-                        className="w-20 h-20 rounded-lg object-cover"
-                      />
-                    </Link>
-                    <div className="flex-1 min-w-0">
-                      <Link
-                        to={`/product/${item.product.id}`}
-                        className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1"
-                      >
-                        {item.product.name}
-                      </Link>
-                      <p className="text-sm text-muted-foreground">{item.product.category}</p>
-                      <button
-                        onClick={() => removeFromCart(item.product.id)}
-                        className="mt-2 text-sm text-destructive hover:underline flex items-center gap-1 md:hidden"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        Remove
-                      </button>
-                    </div>
-                  </div>
+                {items.map((item: any) => {
+                  const product = item.product || {};
+                  const snap = item.productSnapshot || {};
+                  const productId = product.id || product._id || item.productId;
+                  const image = product.image || snap.image || "";
+                  const name = product.name || snap.name || "Product";
+                  const category =
+                    product.category ||
+                    (typeof snap.category === "object"
+                      ? snap.category?.name || snap.category?.slug
+                      : snap.category) ||
+                    "";
 
-                  <div className="md:col-span-2 flex items-center justify-between md:justify-center">
-                    <span className="md:hidden text-muted-foreground text-sm">Price:</span>
-                    <span className="text-foreground">{formatPrice(item.product.price)}</span>
-                  </div>
+                  const price = Number(
+                    product.price ??
+                      snap.afterDiscount ??
+                      snap.finalPrice ??
+                      snap.salesPrice ??
+                      snap.price ??
+                      0
+                  );
 
-                  <div className="md:col-span-2 flex items-center justify-between md:justify-center gap-2">
-                    <span className="md:hidden text-muted-foreground text-sm">Quantity:</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                        className="w-8 h-8 rounded bg-secondary flex items-center justify-center hover:bg-muted transition-colors"
-                        disabled={item.quantity <= 1}
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="w-10 text-center text-sm">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                        className="w-8 h-8 rounded bg-secondary flex items-center justify-center hover:bg-muted transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-2 flex items-center justify-between md:justify-end gap-3">
-                    <span className="md:hidden text-muted-foreground text-sm">Total:</span>
-                    <span className="font-semibold text-primary">
-                      {formatPrice(item.product.price * item.quantity)}
-                    </span>
-                    <button
-                      onClick={() => removeFromCart(item.product.id)}
-                      className="hidden md:block text-muted-foreground hover:text-destructive transition-colors"
+                  return (
+                    <div
+                      key={productId}
+                      className="grid grid-cols-1 md:grid-cols-12 gap-4 px-4 md:px-6 py-4 border-b border-white/10 last:border-b-0"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                      <div className="md:col-span-6 flex gap-4">
+                        <Link to={`/product/${productId}`} className="flex-shrink-0">
+                          <img
+                            src={image}
+                            alt={name}
+                            className="w-20 h-20 rounded-lg object-cover"
+                          />
+                        </Link>
+                        <div className="flex-1 min-w-0">
+                          <Link
+                            to={`/product/${productId}`}
+                            className="font-medium text-[#f4f7ec] hover:text-[#eef4df] transition-colors line-clamp-1"
+                          >
+                            {name}
+                          </Link>
+                          <p className="text-sm text-[#d6dfbd]">
+                            {typeof category === "string" ? category : ""}
+                          </p>
+                          <button
+                            onClick={() => removeFromCart(productId)}
+                            className="mt-2 text-sm text-red-300 hover:underline flex items-center gap-1 md:hidden"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-2 flex items-center justify-between md:justify-center">
+                        <span className="md:hidden text-[#d6dfbd] text-sm">Price:</span>
+                        <span className="text-[#f4f7ec]">{formatPrice(price)}</span>
+                      </div>
+
+                      <div className="md:col-span-2 flex items-center justify-between md:justify-center gap-2">
+                        <span className="md:hidden text-[#d6dfbd] text-sm">Quantity:</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => updateQuantity(productId, item.quantity - 1)}
+                            className="w-8 h-8 rounded bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-[#eef4df]"
+                            disabled={item.quantity <= 1}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-10 text-center text-sm text-[#f4f7ec]">{item.quantity}</span>
+                          <button
+                            onClick={() => updateQuantity(productId, item.quantity + 1)}
+                            className="w-8 h-8 rounded bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-[#eef4df]"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-2 flex items-center justify-between md:justify-end gap-3">
+                        <span className="md:hidden text-[#d6dfbd] text-sm">Total:</span>
+                        <span className="font-semibold text-[#eef4df]">
+                          {formatPrice(price * item.quantity)}
+                        </span>
+                        <button
+                          onClick={() => removeFromCart(productId)}
+                          className="hidden md:block text-[#d6dfbd] hover:text-red-300 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-4">
+                <div className="flex gap-3">
+                  <div className="relative flex-1">
+                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#d6dfbd]" />
+                    <Input
+                      placeholder="Enter coupon code"
+                      className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb] pl-9"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value)}
+                      disabled={couponLoading}
+                    />
                   </div>
+
+                  {!couponApplied ? (
+                    <Button
+                      variant="outline"
+                      onClick={handleApplyCoupon}
+                      disabled={couponLoading}
+                      className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                    >
+                      {couponLoading ? "Applying..." : "Apply"}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={handleRemoveCoupon}
+                      className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22] gap-2"
+                    >
+                      <X className="w-4 h-4" />
+                      Remove
+                    </Button>
+                  )}
                 </div>
-              ))}
+
+                {couponApplied ? (
+                  <div className="mt-2 text-xs text-[#d6dfbd]">
+                    Applied:{" "}
+                    <span className="font-semibold text-[#f4f7ec]">{couponApplied.code}</span>
+                    {discount > 0 ? (
+                      <span className="ml-2 text-green-300">(-{formatPrice(discount)})</span>
+                    ) : null}
+                    {shippingDiscount > 0 ? (
+                      <span className="ml-2 text-green-300">
+                        (-{formatPrice(shippingDiscount)} shipping)
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
-            {/* Coupon */}
-            <div className="bg-card rounded-xl border border-border/50 p-4">
-              <div className="flex gap-3">
-                <div className="relative flex-1">
-                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Enter coupon code"
-                    className="bg-secondary pl-9"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    disabled={couponLoading}
-                  />
-                </div>
+            <div className="lg:col-span-1">
+              <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-6 sticky top-24">
+                <h2 className="text-lg font-semibold text-[#f4f7ec] mb-4">Order Summary</h2>
 
-                {!couponApplied ? (
-                  <Button variant="outline" onClick={handleApplyCoupon} disabled={couponLoading}>
-                    {couponLoading ? "Applying..." : "Apply"}
-                  </Button>
-                ) : (
-                  <Button variant="outline" onClick={handleRemoveCoupon} className="gap-2">
-                    <X className="w-4 h-4" />
-                    Remove
-                  </Button>
-                )}
-              </div>
-
-              {couponApplied ? (
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Applied: <span className="font-semibold text-foreground">{couponApplied.code}</span>
-                  {discount > 0 ? <span className="ml-2 text-green-600">(-{formatPrice(discount)})</span> : null}
-                  {shippingDiscount > 0 ? (
-                    <span className="ml-2 text-green-600">(-{formatPrice(shippingDiscount)} shipping)</span>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Summary */}
-          <div className="lg:col-span-1">
-            <div className="bg-card rounded-xl border border-border/50 p-6 sticky top-24">
-              <h2 className="text-lg font-semibold text-foreground mb-4">Order Summary</h2>
-
-              <div className="space-y-3 mb-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="text-foreground">{formatPrice(totalPrice)}</span>
-                </div>
-
-                {discount > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
-                    <span>Discount</span>
-                    <span>-{formatPrice(discount)}</span>
+                <div className="space-y-3 mb-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#d6dfbd]">Subtotal</span>
+                    <span className="text-[#f4f7ec]">{formatPrice(totalPrice)}</span>
                   </div>
-                )}
 
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Shipping</span>
-                  <span className="text-foreground">{shipping === 0 ? "Free" : formatPrice(shipping)}</span>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-sm text-green-300">
+                      <span>Discount</span>
+                      <span>-{formatPrice(discount)}</span>
+                    </div>
+                  )}
+
+                  {shippingDiscount > 0 && (
+                    <div className="flex justify-between text-sm text-green-300">
+                      <span>Shipping Discount</span>
+                      <span>-{formatPrice(shippingDiscount)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#d6dfbd]">Shipping</span>
+                    <span className="text-[#f4f7ec]">
+                      {shipping === 0 ? "Free" : formatPrice(shipping)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#d6dfbd]">Tax (18% GST)</span>
+                    <span className="text-[#f4f7ec]">{formatPrice(tax)}</span>
+                  </div>
                 </div>
 
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Tax (18% GST)</span>
-                  <span className="text-foreground">{formatPrice(tax)}</span>
+                <div className="border-t border-white/20 pt-4 mb-6">
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-[#f4f7ec]">Total</span>
+                    <span className="text-xl font-bold text-[#eef4df]">
+                      {formatPrice(finalTotal)}
+                    </span>
+                  </div>
                 </div>
+
+                <Button
+                  className="w-full mb-3 bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]"
+                  size="lg"
+                  onClick={handleProceedToCheckout}
+                >
+                  Proceed to Checkout
+                </Button>
+
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-full border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                >
+                  <Link to="/products">Continue Shopping</Link>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="w-full mt-3 border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                  onClick={() => {
+                    clearCart();
+                    handleRemoveCoupon();
+                    toast.message("Cart cleared");
+                  }}
+                >
+                  Clear Cart
+                </Button>
               </div>
-
-              <div className="border-t border-primary/30 pt-4 mb-6">
-                <div className="flex justify-between">
-                  <span className="font-semibold text-foreground">Total</span>
-                  <span className="text-xl font-bold text-primary">{formatPrice(finalTotal)}</span>
-                </div>
-              </div>
-
-              {/* ✅ navigate with coupon payload */}
-              <Button
-                variant="gold"
-                size="lg"
-                className="w-full mb-3"
-                onClick={handleProceedToCheckout}
-              >
-                Proceed to Checkout
-              </Button>
-
-              <Button asChild variant="ghost" className="w-full">
-                <Link to="/products">Continue Shopping</Link>
-              </Button>
-
-              <Button
-                variant="outline"
-                className="w-full mt-3"
-                onClick={() => {
-                  clearCart();
-                  handleRemoveCoupon();
-                  toast.message("Cart cleared");
-                }}
-              >
-                Clear Cart
-              </Button>
             </div>
           </div>
         </div>

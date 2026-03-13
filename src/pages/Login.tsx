@@ -93,34 +93,34 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-surface-1 to-background p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#4f622b] via-[#556b2f] to-[#3f4f22] p-4 relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/4 -right-1/4 w-1/2 h-1/2 rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -top-1/4 -right-1/4 w-1/2 h-1/2 rounded-full bg-[#eef4df]/5 blur-3xl" />
+        <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 rounded-full bg-[#eef4df]/5 blur-3xl" />
       </div>
 
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-3 group">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center font-bold text-primary-foreground text-2xl shadow-lg shadow-amber-500/30 group-hover:scale-105 transition-transform">
+            <div className="w-14 h-14 rounded-xl bg-[#eef4df] flex items-center justify-center font-bold text-[#3f4f22] text-2xl shadow-lg shadow-black/10 group-hover:scale-105 transition-transform">
               JS
             </div>
           </Link>
-          <h1 className="text-2xl font-bold mt-4 bg-gradient-to-r from-amber-600 to-amber-400 bg-clip-text text-transparent">
+          <h1 className="text-2xl font-bold mt-4 text-[#eef4df]">
             JS Gallor Mid-range
           </h1>
         </div>
 
         {/* Login Card */}
-        <div className="glass-card p-8 border border-amber-200/20">
-          <h2 className="text-2xl font-bold text-foreground mb-2">Welcome Back</h2>
-          <p className="text-muted-foreground mb-6">Sign in to your premium account</p>
+        <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-8 shadow-xl">
+          <h2 className="text-2xl font-bold text-[#f4f7ec] mb-2">Welcome Back</h2>
+          <p className="text-[#d6dfbd] mb-6">Sign in to your premium account</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-muted-foreground mb-2 block">
+              <label className="text-sm font-medium text-[#d6dfbd] mb-2 block">
                 Email Address
               </label>
               <Input
@@ -128,14 +128,14 @@ const Login = () => {
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-secondary border-border/50 focus:border-amber-500 h-12"
+                className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb] h-12 focus:border-[#eef4df] focus:ring-[#eef4df]"
                 disabled={isAnyLoading}
                 required
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium text-muted-foreground mb-2 block">
+              <label className="text-sm font-medium text-[#d6dfbd] mb-2 block">
                 Password
               </label>
               <div className="relative">
@@ -144,14 +144,14 @@ const Login = () => {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-secondary border-border/50 focus:border-amber-500 h-12 pr-12"
+                  className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb] h-12 pr-12 focus:border-[#eef4df] focus:ring-[#eef4df]"
                   disabled={isAnyLoading}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((s) => !s)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#d6dfbd] hover:text-[#f4f7ec] transition-colors"
                   disabled={isAnyLoading}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -165,14 +165,14 @@ const Login = () => {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-border bg-secondary accent-amber-500"
+                  className="rounded border-white/20 bg-white/10 accent-[#eef4df]"
                   disabled={isAnyLoading}
                 />
-                <span className="text-muted-foreground">Remember me</span>
+                <span className="text-[#d6dfbd]">Remember me</span>
               </label>
               <Link
                 to="/forgot-password"
-                className="text-amber-600 hover:text-amber-700 hover:underline"
+                className="text-[#eef4df] hover:text-[#f4f7ec] hover:underline"
               >
                 Forgot password?
               </Link>
@@ -180,9 +180,8 @@ const Login = () => {
 
             <Button
               type="submit"
-              variant="gold"
               size="lg"
-              className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold shadow-lg shadow-amber-500/20"
+              className="w-full bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2] font-semibold shadow-md"
               disabled={isAnyLoading}
             >
               {isLoading ? (
@@ -198,10 +197,10 @@ const Login = () => {
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border/50" />
+              <div className="w-full border-t border-white/10" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-card px-4 text-muted-foreground">or continue with</span>
+              <span className="bg-[#4b5e29] px-4 text-[#d6dfbd]">or continue with</span>
             </div>
           </div>
 
@@ -217,16 +216,16 @@ const Login = () => {
           </div>
 
           {isGoogleLoading && (
-            <p className="mt-3 text-xs text-muted-foreground text-center">
+            <p className="mt-3 text-xs text-[#d6dfbd] text-center">
               Signing in with Google...
             </p>
           )}
 
-          <p className="text-center text-muted-foreground text-sm mt-6">
+          <p className="text-center text-[#d6dfbd] text-sm mt-6">
             Don't have an account?{" "}
             <Link
               to="/signup"
-              className="text-amber-600 hover:text-amber-700 hover:underline font-medium"
+              className="text-[#eef4df] hover:text-[#f4f7ec] hover:underline font-medium"
             >
               Sign Up
             </Link>
@@ -237,7 +236,7 @@ const Login = () => {
         <p className="text-center mt-6">
           <Link
             to="/"
-            className="text-muted-foreground hover:text-amber-600 hover:underline text-sm transition-colors flex items-center justify-center gap-1"
+            className="text-[#d6dfbd] hover:text-[#eef4df] hover:underline text-sm transition-colors flex items-center justify-center gap-1"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />

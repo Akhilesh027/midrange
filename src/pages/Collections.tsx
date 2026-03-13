@@ -56,7 +56,7 @@ const Collections = () => {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-screen relative overflow-hidden bg-[#556b2f]">
       {/* Background */}
       <div 
         className="fixed inset-0 bg-cover bg-center z-[-2]"
@@ -65,22 +65,22 @@ const Collections = () => {
           filter: 'brightness(0.65)',
         }}
       />
-      <div className="fixed inset-0 bg-black/60 z-[-1]" />
+      <div className="fixed inset-0 bg-[#3f4f22]/80 z-[-1]" />
 
       {/* Header */}
       <header className="flex flex-wrap justify-between items-center gap-5 p-5 md:p-8 lg:p-10">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-primary flex items-center justify-center font-bold text-primary-foreground text-xl shadow-lg shadow-primary/30 hover:rotate-[360deg] transition-transform duration-700">
+          <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-[#eef4df] flex items-center justify-center font-bold text-[#3f4f22] text-xl shadow-lg shadow-black/10 hover:rotate-[360deg] transition-transform duration-700">
             JS
           </div>
           <div>
-            <div className="font-semibold text-lg text-foreground">JS GALLOR</div>
-            <div className="text-xs text-muted-foreground">Furniture & Interiors</div>
+            <div className="font-semibold text-lg text-[#f4f7ec]">JS GALLOR</div>
+            <div className="text-xs text-[#d6dfbd]">Furniture & Interiors</div>
           </div>
         </div>
         
         <button 
-          className="px-6 py-3 rounded-full bg-transparent backdrop-blur-sm border border-primary text-foreground font-semibold text-xs tracking-wider uppercase transition-all duration-300 hover:bg-primary hover:text-primary-foreground hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/40 relative overflow-hidden group"
+          className="px-6 py-3 rounded-full bg-[#eef4df] text-[#3f4f22] font-semibold text-xs tracking-wider uppercase transition-all duration-300 hover:bg-[#dde8c2] hover:-translate-y-1 hover:shadow-lg relative overflow-hidden group"
         >
           <span className="relative z-10">Enquiry for Interior →</span>
           <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-600" />
@@ -97,22 +97,22 @@ const Collections = () => {
               className="group"
             >
               <div 
-                className="relative w-40 h-40 md:w-52 md:h-52 lg:w-64 lg:h-64 rounded-full border border-primary bg-cover bg-center cursor-pointer overflow-hidden transition-all duration-500 animate-pulse-gold"
+                className="relative w-40 h-40 md:w-52 md:h-52 lg:w-64 lg:h-64 rounded-full border border-[#eef4df] bg-cover bg-center cursor-pointer overflow-hidden transition-all duration-500 animate-pulse-gold"
                 style={{ 
                   backgroundImage: `url(${collection.image})`,
-                  boxShadow: '0 0 40px rgba(255, 210, 77, 0.2)',
+                  boxShadow: '0 0 40px rgba(238, 244, 223, 0.2)',
                 }}
               >
                 {/* Overlay */}
-                <div className="absolute inset-0 bg-black/40 rounded-full transition-colors duration-300 group-hover:bg-primary/30" />
+                <div className="absolute inset-0 bg-[#3f4f22]/40 rounded-full transition-colors duration-300 group-hover:bg-[#eef4df]/20" />
                 
                 {/* Label */}
                 <div className="absolute inset-0 flex items-end justify-center pb-4 md:pb-6">
                   <div className="relative z-10 text-center transition-colors duration-300">
-                    <div className="font-extrabold text-lg md:text-xl text-foreground group-hover:text-primary-foreground">
+                    <div className="font-extrabold text-lg md:text-xl text-[#f4f7ec] group-hover:text-[#eef4df]">
                       {collection.title}
                     </div>
-                    <div className="text-xs md:text-sm text-muted-foreground mt-1 group-hover:text-foreground/80">
+                    <div className="text-xs md:text-sm text-[#d6dfbd] mt-1 group-hover:text-[#f4f7ec]">
                       {collection.subtitle}
                     </div>
                   </div>
@@ -126,25 +126,25 @@ const Collections = () => {
               className="group cursor-pointer"
             >
               <div 
-                className="relative w-40 h-40 md:w-52 md:h-52 lg:w-64 lg:h-64 rounded-full border border-primary/50 bg-cover bg-center overflow-hidden transition-all duration-500"
+                className="relative w-40 h-40 md:w-52 md:h-52 lg:w-64 lg:h-64 rounded-full border border-[#eef4df]/50 bg-cover bg-center overflow-hidden transition-all duration-500"
                 style={{ 
                   backgroundImage: `url(${collection.image})`,
-                  boxShadow: '0 0 40px rgba(255, 210, 77, 0.15)',
+                  boxShadow: '0 0 40px rgba(238, 244, 223, 0.15)',
                 }}
               >
                 {/* Overlay */}
-                <div className="absolute inset-0 bg-black/50 rounded-full transition-colors duration-300 group-hover:bg-primary/20" />
+                <div className="absolute inset-0 bg-[#3f4f22]/60 rounded-full transition-colors duration-300 group-hover:bg-[#eef4df]/10" />
                 
                 {/* Label */}
                 <div className="absolute inset-0 flex items-end justify-center pb-4 md:pb-6">
                   <div className="relative z-10 text-center">
-                    <div className="font-extrabold text-lg md:text-xl text-foreground/70 group-hover:text-foreground">
+                    <div className="font-extrabold text-lg md:text-xl text-[#f4f7ec]/70 group-hover:text-[#f4f7ec]">
                       {collection.title}
                     </div>
-                    <div className="text-xs md:text-sm text-muted-foreground mt-1">
+                    <div className="text-xs md:text-sm text-[#d6dfbd] mt-1">
                       {collection.subtitle}
                     </div>
-                    <div className="text-[10px] text-primary mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="text-[10px] text-[#eef4df] mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       Coming Soon
                     </div>
                   </div>
@@ -158,10 +158,10 @@ const Collections = () => {
       {/* Help Button */}
       <button
         onClick={() => setIsHelpOpen(true)}
-        className="fixed left-5 bottom-5 md:left-8 md:bottom-8 flex items-center gap-3 px-4 py-2 rounded-2xl border border-primary/70 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md text-foreground text-sm font-light tracking-wide transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-lg group z-50"
+        className="fixed left-5 bottom-5 md:left-8 md:bottom-8 flex items-center gap-3 px-4 py-2 rounded-2xl border border-white/10 bg-[#4b5e29] backdrop-blur-md text-[#f4f7ec] text-sm font-light tracking-wide transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-lg group z-50"
       >
         Help
-        <div className="w-6 h-6 rounded-xl bg-black/20 flex items-center justify-center text-primary font-bold text-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-[360deg]">
+        <div className="w-6 h-6 rounded-xl bg-black/20 flex items-center justify-center text-[#eef4df] font-bold text-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-[360deg]">
           i
         </div>
       </button>
@@ -172,9 +172,9 @@ const Collections = () => {
           className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={(e) => e.target === e.currentTarget && setIsHelpOpen(false)}
         >
-          <div className="glass-card w-full max-w-md p-6 animate-fade-in">
-            <h2 className="text-xl font-bold text-foreground mb-2">Contact Us</h2>
-            <p className="text-muted-foreground text-sm mb-5">
+          <div className="bg-[#4b5e29] rounded-xl border border-white/10 w-full max-w-md p-6 animate-fade-in shadow-xl">
+            <h2 className="text-xl font-bold text-[#f4f7ec] mb-2">Contact Us</h2>
+            <p className="text-[#d6dfbd] text-sm mb-5">
               Please fill out this form to request help or contact our support team.
             </p>
 
@@ -185,7 +185,7 @@ const Collections = () => {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
-                className="bg-secondary border-border/50"
+                className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb] focus:border-[#eef4df] focus:ring-[#eef4df]"
               />
               <Input
                 type="email"
@@ -193,45 +193,45 @@ const Collections = () => {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
-                className="bg-secondary border-border/50"
+                className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb] focus:border-[#eef4df] focus:ring-[#eef4df]"
               />
               <Input
                 type="tel"
                 placeholder="Your Phone Number"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="bg-secondary border-border/50"
+                className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb] focus:border-[#eef4df] focus:ring-[#eef4df]"
               />
               <textarea
                 placeholder="How can we assist you?"
                 value={formData.message}
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                 required
-                className="w-full px-4 py-3 rounded-lg bg-secondary border border-border/50 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none resize-none h-24"
+                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb] focus:border-[#eef4df] focus:outline-none resize-none h-24"
               />
-              <Button type="submit" variant="gold" className="w-full">
+              <Button type="submit" className="w-full bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]">
                 Submit Request
               </Button>
             </form>
 
-            <div className="mt-5 pt-5 border-t border-border/30 space-y-2 text-sm text-muted-foreground">
+            <div className="mt-5 pt-5 border-t border-white/10 space-y-2 text-sm text-[#d6dfbd]">
               <p className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-primary" />
+                <Mail className="w-4 h-4 text-[#eef4df]" />
                 support@jsgalore.com
               </p>
               <p className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-primary" />
+                <Phone className="w-4 h-4 text-[#eef4df]" />
                 +91 94931 20108
               </p>
               <p className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-primary" />
+                <MapPin className="w-4 h-4 text-[#eef4df]" />
                 Hyderabad
               </p>
             </div>
 
             <button
               onClick={() => setIsHelpOpen(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute top-4 right-4 text-[#d6dfbd] hover:text-[#f4f7ec] transition-colors"
             >
               <X className="w-5 h-5" />
             </button>

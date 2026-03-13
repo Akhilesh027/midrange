@@ -11,6 +11,7 @@ import {
   Package,
   Crown,
   Star,
+  Loader2,
 } from "lucide-react";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useCart } from "@/context/CartContext";
@@ -22,7 +23,6 @@ import logo from "../../Image/JSGALORE.png";
 
 const API_ADMIN = "https://api.jsgallor.com/api/admin";
 
-// ✅ category shape coming from admin categories api
 type ApiCategory = {
   id: string;
   name: string;
@@ -43,18 +43,61 @@ export const Header = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ✅ categories state (dynamic)
+  // ✅ Location state
+  const [location, setLocation] = useState<{
+    city?: string;
+    loading: boolean;
+    error?: string;
+  }>({ loading: false });
+
   const [cats, setCats] = useState<ApiCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
 
   const { totalItems } = useCart();
   const { user, isAuthenticated, logout, loading } = useMidrangeAuth();
-  const { level, badge, isPremium, isElite } = useMembership();
-  const location = useLocation();
+  const { level, badge, isPremium } = useMembership();
+  const locationObj = useLocation();
   const navigate = useNavigate();
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // ✅ fetch navbar categories: segment=all + segment=midrange
+  // ✅ Get user location
+  const getUserLocation = () => {
+    if (!navigator.geolocation) {
+      setLocation({ loading: false, error: "Geolocation not supported" });
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setLocation({ loading: true });
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          // Use a free reverse geocoding API (BigDataCloud)
+          const res = await fetch(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+          );
+          const data = await res.json();
+          const city = data.city || data.locality || data.principalSubdivision || "Unknown";
+          setLocation({ city, loading: false });
+          toast.success(`Location detected: ${city}`);
+        } catch (error) {
+          setLocation({ loading: false, error: "Failed to get city name" });
+          toast.error("Could not determine your city");
+        }
+      },
+      (error) => {
+        let msg = "Location access denied";
+        if (error.code === error.TIMEOUT) msg = "Location request timed out";
+        else if (error.code === error.POSITION_UNAVAILABLE) msg = "Location unavailable";
+        setLocation({ loading: false, error: msg });
+        toast.error(msg);
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
   useEffect(() => {
     const fetchCats = async () => {
       try {
@@ -72,7 +115,6 @@ export const Header = () => {
         const a1: ApiCategory[] = Array.isArray(j1) ? j1 : j1?.data?.items || [];
         const a2: ApiCategory[] = Array.isArray(j2) ? j2 : j2?.data?.items || [];
 
-        // merge unique by slug
         const map = new Map<string, ApiCategory>();
         [...a1, ...a2].forEach((c) => {
           if (!c?.slug) return;
@@ -81,7 +123,6 @@ export const Header = () => {
 
         let merged = Array.from(map.values());
 
-        // ✅ keep only categories that should appear in navbar
         merged = merged
           .filter((c) => {
             if (c.status && c.status !== "active") return false;
@@ -89,10 +130,14 @@ export const Header = () => {
             if (typeof c.showInNavbar === "boolean" && !c.showInNavbar) return false;
 
             const seg = norm(c.segment);
-            if (seg !== "all" && seg !== "midrange") return false; // only all + midrange
+            if (seg !== "all" && seg !== "midrange") return false;
             return true;
           })
-          .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+          .sort(
+            (a, b) =>
+              Number(a.order || 0) - Number(b.order || 0) ||
+              a.name.localeCompare(b.name)
+          );
 
         setCats(merged);
       } catch {
@@ -105,7 +150,6 @@ export const Header = () => {
     fetchCats();
   }, []);
 
-  // ✅ build parents + children map for dropdown
   const parents = useMemo(() => cats.filter((c) => !c.parentId), [cats]);
 
   const childrenByParent = useMemo(() => {
@@ -117,15 +161,18 @@ export const Header = () => {
       arr.push(c);
       map.set(pid, arr);
     });
-    // sort each child list by order/name
+
     for (const [k, v] of map.entries()) {
-      v.sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || a.name.localeCompare(b.name));
+      v.sort(
+        (a, b) =>
+          Number(a.order || 0) - Number(b.order || 0) ||
+          a.name.localeCompare(b.name)
+      );
       map.set(k, v);
     }
     return map;
   }, [cats]);
 
-  // Close user menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
@@ -175,58 +222,52 @@ export const Header = () => {
   const getMembershipColor = () => {
     switch (level) {
       case "premium":
-        return "bg-gradient-to-r from-amber-500 to-yellow-500";
+        return "bg-gradient-to-r from-[#c69b3c] to-[#e0b84f]";
       case "elite":
-        return "bg-gradient-to-r from-purple-600 to-pink-600";
+        return "bg-gradient-to-r from-[#6b4fa3] to-[#a05ccf]";
       default:
-        return "bg-gradient-to-r from-blue-500 to-cyan-500";
+        return "bg-gradient-to-r from-[#6e8b3d] to-[#88a84c]";
     }
   };
 
   const getMembershipIcon = () => {
     switch (level) {
       case "premium":
-        return <Star className="w-3 h-3 text-amber-500" />;
+        return <Star className="w-3 h-3 text-[#d8a93a]" />;
       case "elite":
-        return <Crown className="w-3 h-3 text-purple-500" />;
+        return <Crown className="w-3 h-3 text-[#8f5cc2]" />;
       default:
         return null;
     }
   };
 
-  // ✅ helper to build URLs your CategoriesPage expects:
-  // parent: /categories/:categorySlug
-  // child : /categories/:categorySlug?sub=:subSlug
   const parentHref = (parentSlug: string) => `/categories/${parentSlug}`;
   const childHref = (parentSlug: string, childSlug: string) =>
     `/categories/${parentSlug}?sub=${encodeURIComponent(childSlug)}`;
 
-  // Don't render while loading
   if (loading) {
     return (
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50">
+      <header className="sticky top-0 z-50 bg-[#556b2f]/95 backdrop-blur-md border-b border-white/10">
         <div className="container mx-auto px-4 h-16 md:h-20 flex items-center justify-center">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 animate-pulse"></div>
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#f3deb0]/20 to-[#f3deb0]/10 animate-pulse" />
         </div>
       </header>
     );
   }
 
   return (
-    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50">
-      {/* Top bar */}
+    <header className="sticky top-0 z-50 bg-[#556b2f]/95 backdrop-blur-md border-b border-white/10 text-[#f7ecd7]">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16 md:h-20">
-          {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-lg from-amber-500 to-amber-600 flex items-center justify-center font-bold text-white text-xl shadow-md shadow-amber-500/20">
-              <img src={logo} alt="JS GALLOR Logo" />
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center shadow-md overflow-hidden border border-white/10 bg-white/5">
+              <img src={logo} alt="JS GALLOR Logo" className="w-full h-full object-contain" />
             </div>
             <div className="hidden sm:block">
-              <div className="text-lg font-bold text-foreground group-hover:text-amber-600 transition-colors">
+              <div className="text-lg font-bold text-[#f7ecd7] group-hover:text-[#ffe8b3] transition-colors">
                 JS GALLOR
               </div>
-              <div className="text-xs text-muted-foreground">Mid-range Furniture</div>
+              <div className="text-xs text-[#cdbf9e]">Mid-range Furniture</div>
             </div>
           </Link>
 
@@ -237,48 +278,60 @@ export const Header = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 type="search"
                 placeholder="Search mid-range furniture..."
-                className="w-full pl-4 pr-10 bg-secondary border-border/50 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20"
+                className="w-full pl-4 pr-10 bg-white/10 border-white/15 text-[#f7ecd7] placeholder:text-[#cdbf9e] focus:border-[#f3deb0] focus:ring-1 focus:ring-[#f3deb0]/20"
               />
-              <button className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-amber-600 transition-colors">
+              <button className="absolute right-3 top-1/2 -translate-y-1/2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors">
                 <Search className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex items-center gap-2 md:gap-4">
-            {/* Mobile search toggle */}
             <button
               onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="md:hidden p-2 text-muted-foreground hover:text-amber-600 transition-colors"
+              className="md:hidden p-2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors"
             >
               <Search className="w-5 h-5" />
             </button>
 
-            {/* Location */}
-            <button className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground hover:text-amber-600 transition-colors">
-              <MapPin className="w-4 h-4" />
-              <span className="hidden lg:inline">Location</span>
+            {/* ✅ Location button with live detection */}
+            <button
+              onClick={getUserLocation}
+              disabled={location.loading}
+              className="hidden sm:flex items-center gap-1 text-sm text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors disabled:opacity-50"
+            >
+              {location.loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <MapPin className="w-4 h-4" />
+              )}
+              <span className="hidden lg:inline">
+                {location.loading
+                  ? "Detecting..."
+                  : location.city
+                  ? location.city
+                  : location.error
+                  ? "Location off"
+                  : "Detect location"}
+              </span>
             </button>
 
-            {/* Cart */}
             <Link
               to="/cart"
-              className="relative p-2 text-muted-foreground hover:text-amber-600 transition-colors"
+              className="relative p-2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors"
             >
               <ShoppingCart className="w-5 h-5" />
               {totalItems > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-white text-xs font-bold flex items-center justify-center animate-pulse">
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#f3deb0] text-[#3f4f22] text-xs font-bold flex items-center justify-center shadow-sm">
                   {totalItems > 9 ? "9+" : totalItems}
                 </span>
               )}
             </Link>
 
-            {/* User Profile - With dropdown */}
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={handleUserClick}
-                className="p-2 text-muted-foreground hover:text-amber-600 transition-colors relative group"
+                className="p-2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors relative group"
               >
                 {isAuthenticated && user ? (
                   <div className="relative">
@@ -288,7 +341,7 @@ export const Header = () => {
                       {getInitials(displayName)}
                     </div>
                     {isPremium && (
-                      <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gradient-to-br from-amber-500 to-yellow-500 flex items-center justify-center">
+                      <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#f3deb0] flex items-center justify-center shadow">
                         {getMembershipIcon()}
                       </div>
                     )}
@@ -298,13 +351,11 @@ export const Header = () => {
                 )}
               </button>
 
-              {/* User Dropdown Menu */}
               {isUserMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-lg shadow-xl z-50 animate-in fade-in slide-in-from-top-5">
+                <div className="absolute right-0 top-full mt-2 w-72 bg-[#4b5e29] border border-white/10 rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-5 overflow-hidden">
                   {isAuthenticated && user ? (
                     <>
-                      {/* User Info */}
-                      <div className="p-4 border-b border-border/50">
+                      <div className="p-4 border-b border-white/10 bg-white/5">
                         <div className="flex items-center gap-3">
                           <div
                             className={`w-12 h-12 rounded-full ${getMembershipColor()} flex items-center justify-center text-lg font-bold text-white shadow-md`}
@@ -313,29 +364,27 @@ export const Header = () => {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="font-semibold text-foreground truncate">
+                              <p className="font-semibold text-[#f7ecd7] truncate">
                                 {displayName}
                               </p>
                               {getMembershipIcon()}
                             </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {user.email}
-                            </p>
+                            <p className="text-xs text-[#cdbf9e] truncate">{user.email}</p>
                             <div className="flex items-center justify-between mt-2">
                               <span
                                 className={`text-xs px-2 py-1 rounded-full ${
                                   level === "elite"
-                                    ? "bg-purple-500/10 text-purple-600"
+                                    ? "bg-[#8f5cc2]/15 text-[#eadfff]"
                                     : level === "premium"
-                                    ? "bg-amber-500/10 text-amber-600"
-                                    : "bg-blue-500/10 text-blue-600"
+                                    ? "bg-[#d8a93a]/15 text-[#ffe8b3]"
+                                    : "bg-[#f3deb0]/15 text-[#f3deb0]"
                                 }`}
                               >
                                 {badge} Member
                               </span>
                               <div className="flex items-center gap-1">
-                                <Star className="w-3 h-3 text-amber-500" />
-                                <span className="text-xs font-medium">
+                                <Star className="w-3 h-3 text-[#d8a93a]" />
+                                <span className="text-xs font-medium text-[#f7ecd7]">
                                   {user.loyaltyPoints} pts
                                 </span>
                               </div>
@@ -344,16 +393,15 @@ export const Header = () => {
                         </div>
                       </div>
 
-                      {/* Menu Items */}
                       <div className="p-2">
                         <button
                           onClick={handleProfileClick}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-foreground hover:bg-muted/50 rounded-md transition-colors"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-[#f7ecd7] hover:bg-white/10 rounded-md transition-colors"
                         >
                           <User className="w-4 h-4" />
                           <span>My Profile</span>
                           {user.isVerified && (
-                            <span className="ml-auto text-xs bg-green-500/10 text-green-600 px-2 py-0.5 rounded-full">
+                            <span className="ml-auto text-xs bg-green-500/15 text-green-200 px-2 py-0.5 rounded-full">
                               Verified
                             </span>
                           )}
@@ -362,45 +410,22 @@ export const Header = () => {
                         <Link
                           to="/orders"
                           onClick={() => setIsUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-foreground hover:bg-muted/50 rounded-md transition-colors"
+                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-[#f7ecd7] hover:bg-white/10 rounded-md transition-colors"
                         >
                           <Package className="w-4 h-4" />
                           <span>My Orders</span>
                           {user.totalOrders > 0 && (
-                            <span className="ml-auto text-xs bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full">
+                            <span className="ml-auto text-xs bg-[#f3deb0]/15 text-[#ffe8b3] px-2 py-0.5 rounded-full">
                               {user.totalOrders}
                             </span>
                           )}
                         </Link>
 
-                        <Link
-                          to="/membership"
-                          onClick={() => setIsUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-foreground hover:bg-muted/50 rounded-md transition-colors"
-                        >
-                          <Crown className="w-4 h-4" />
-                          <span>Membership</span>
-                          {!isPremium && (
-                            <span className="ml-auto text-xs bg-gradient-to-r from-amber-500 to-yellow-500 text-white px-2 py-0.5 rounded-full animate-pulse">
-                              Upgrade
-                            </span>
-                          )}
-                        </Link>
-
-                        <Link
-                          to="/settings"
-                          onClick={() => setIsUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 text-sm text-foreground hover:bg-muted/50 rounded-md transition-colors"
-                        >
-                          <Settings className="w-4 h-4" />
-                          Settings
-                        </Link>
-
-                        <div className="border-t border-border/50 my-2"></div>
+                        <div className="border-t border-white/10 my-2" />
 
                         <button
                           onClick={handleLogout}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-[#ffb4b4] hover:bg-red-500/10 rounded-md transition-colors"
                         >
                           <LogOut className="w-4 h-4" />
                           Logout
@@ -409,7 +434,7 @@ export const Header = () => {
                     </>
                   ) : (
                     <div className="p-4">
-                      <p className="text-sm text-muted-foreground mb-4">
+                      <p className="text-sm text-[#cdbf9e] mb-4">
                         Sign in to access premium features
                       </p>
                       <div className="flex flex-col gap-2">
@@ -420,7 +445,7 @@ export const Header = () => {
                           }}
                           variant="default"
                           size="sm"
-                          className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
+                          className="w-full bg-[#f3deb0] text-[#3f4f22] hover:bg-[#e7d29d]"
                         >
                           Sign In
                         </Button>
@@ -431,27 +456,10 @@ export const Header = () => {
                           }}
                           variant="outline"
                           size="sm"
-                          className="w-full border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+                          className="w-full border-[#e7d8b4]/30 text-[#f7ecd7] hover:bg-white/10"
                         >
                           Create Account
                         </Button>
-                      </div>
-                      <div className="mt-4 text-xs text-muted-foreground">
-                        <p className="font-medium mb-1">Join to get:</p>
-                        <ul className="space-y-1">
-                          <li className="flex items-center gap-2">
-                            <Star className="w-3 h-3 text-amber-500" />
-                            <span>Loyalty rewards</span>
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <Package className="w-3 h-3 text-amber-500" />
-                            <span>Order tracking</span>
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <Crown className="w-3 h-3 text-amber-500" />
-                            <span>Membership benefits</span>
-                          </li>
-                        </ul>
                       </div>
                     </div>
                   )}
@@ -459,17 +467,15 @@ export const Header = () => {
               )}
             </div>
 
-            {/* Mobile menu toggle */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 text-muted-foreground hover:text-amber-600 transition-colors"
+              className="md:hidden p-2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors"
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
 
-        {/* Mobile search */}
         {isSearchOpen && (
           <div className="md:hidden pb-4 animate-in fade-in slide-in-from-top">
             <div className="relative">
@@ -478,9 +484,9 @@ export const Header = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 type="search"
                 placeholder="Search mid-range furniture..."
-                className="w-full bg-secondary border-border/50 focus:border-amber-500"
+                className="w-full bg-white/10 border-white/15 text-[#f7ecd7] placeholder:text-[#cdbf9e] focus:border-[#f3deb0]"
               />
-              <button className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-amber-600 transition-colors">
+              <button className="absolute right-3 top-1/2 -translate-y-1/2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors">
                 <Search className="w-4 h-4" />
               </button>
             </div>
@@ -488,52 +494,52 @@ export const Header = () => {
         )}
       </div>
 
-      {/* Navigation - Desktop */}
-      <nav className="hidden md:block border-t border-border/30 bg-surface-1/80 backdrop-blur-sm">
+      <nav className="hidden md:block border-t border-white/10 bg-[#4b5e29]/90 backdrop-blur-sm">
         <div className="container mx-auto px-4">
           <ul className="flex items-center gap-1">
             {catLoading && parents.length === 0 ? (
-              <li className="px-4 py-3 text-sm text-muted-foreground">Loading categories…</li>
+              <li className="px-4 py-3 text-sm text-[#cdbf9e]">Loading categories…</li>
             ) : parents.length === 0 ? (
-              <li className="px-4 py-3 text-sm text-muted-foreground">No categories</li>
+              <li className="px-4 py-3 text-sm text-[#cdbf9e]">No categories</li>
             ) : (
               parents.map((parent) => {
                 const children = childrenByParent.get(String(parent.id)) || [];
-                const parentActive = location.pathname === parentHref(parent.slug);
+                const parentActive = locationObj.pathname === parentHref(parent.slug);
 
                 return (
                   <li key={parent.id} className="relative group">
                     <Link
                       to={parentHref(parent.slug)}
                       className={`block px-4 py-3 text-sm font-medium transition-colors relative ${
-                        parentActive ? "text-amber-600" : "text-foreground hover:text-amber-600"
+                        parentActive
+                          ? "text-[#ffe8b3]"
+                          : "text-[#f7ecd7] hover:text-[#ffe8b3]"
                       }`}
                     >
                       {parent.name}
                       {parentActive && (
-                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-gradient-to-r from-amber-500 to-yellow-500 rounded-full"></span>
+                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#f3deb0] rounded-full" />
                       )}
                     </Link>
 
-                    {/* Dropdown */}
                     {children.length > 0 && (
                       <div className="absolute left-0 top-full invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all duration-200 z-50">
                         <div className="pt-2">
-                          <ul className="bg-card border border-border rounded-lg shadow-xl min-w-[200px] py-2 backdrop-blur-sm">
+                          <ul className="bg-[#4b5e29] border border-white/10 rounded-xl shadow-2xl min-w-[220px] py-2 backdrop-blur-sm">
                             <li>
                               <Link
                                 to={parentHref(parent.slug)}
-                                className="block px-4 py-2 text-sm font-medium text-foreground hover:text-amber-600 hover:bg-muted/50 transition-colors"
+                                className="block px-4 py-2 text-sm font-medium text-[#f7ecd7] hover:text-[#ffe8b3] hover:bg-white/10 transition-colors"
                               >
                                 All in {parent.name}
                               </Link>
                             </li>
-                            <div className="border-t border-border/50 my-1" />
+                            <div className="border-t border-white/10 my-1" />
                             {children.map((child) => (
                               <li key={child.id}>
                                 <Link
                                   to={childHref(parent.slug, child.slug)}
-                                  className="block px-4 py-2 text-sm text-muted-foreground hover:text-amber-600 hover:bg-muted/50 transition-colors"
+                                  className="block px-4 py-2 text-sm text-[#cdbf9e] hover:text-[#ffe8b3] hover:bg-white/10 transition-colors"
                                 >
                                   {child.name}
                                 </Link>
@@ -547,167 +553,9 @@ export const Header = () => {
                 );
               })
             )}
-
-            {/* keep your extra links */}
-            <li>
-              <Link
-                to="/exclusive"
-                className={`block px-4 py-3 text-sm font-medium transition-colors relative ${
-                  location.pathname.includes("exclusive")
-                    ? "text-purple-600"
-                    : "text-purple-600 hover:text-purple-500"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Crown className="w-3 h-3" />
-                  <span>Exclusive</span>
-                </div>
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/sale"
-                className={`block px-4 py-3 text-sm font-bold transition-colors ${
-                  location.pathname.includes("sale") ? "text-red-600" : "text-red-600 hover:text-red-500"
-                }`}
-              >
-                Sale
-              </Link>
-            </li>
           </ul>
         </div>
       </nav>
-
-      {/* Mobile menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden bg-card border-t border-border animate-in slide-in-from-top">
-          <nav className="container mx-auto px-4 py-4">
-            <ul className="space-y-1">
-              {parents.map((parent) => {
-                const children = childrenByParent.get(String(parent.id)) || [];
-                return (
-                  <li key={parent.id}>
-                    <Link
-                      to={parentHref(parent.slug)}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className={`block py-3 px-3 rounded-md transition-colors ${
-                        location.pathname === parentHref(parent.slug)
-                          ? "bg-amber-500/10 text-amber-600"
-                          : "text-foreground hover:bg-muted/50"
-                      }`}
-                    >
-                      {parent.name}
-                    </Link>
-
-                    {children.length > 0 && (
-                      <div className="ml-3 mb-2 border-l border-border/50">
-                        {children.map((child) => (
-                          <Link
-                            key={child.id}
-                            to={childHref(parent.slug, child.slug)}
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="block py-2 px-3 text-sm text-muted-foreground hover:text-amber-600 hover:bg-muted/50 rounded-md"
-                          >
-                            {child.name}
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-
-              <li>
-                <Link
-                  to="/exclusive"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block py-3 px-3 rounded-md text-purple-600 hover:bg-purple-500/10 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-4 h-4" />
-                    <span>Exclusive</span>
-                  </div>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/sale"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`block py-3 px-3 rounded-md font-bold ${
-                    location.pathname.includes("sale")
-                      ? "bg-red-500/10 text-red-600"
-                      : "text-red-600 hover:bg-red-500/10"
-                  }`}
-                >
-                  Sale
-                </Link>
-              </li>
-            </ul>
-
-            {/* Mobile User Actions */}
-            <div className="pt-4 mt-4 border-t border-border/50">
-              {isAuthenticated ? (
-                <>
-                  <Link
-                    to="/profile"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center gap-3 py-3 px-3 rounded-md text-foreground hover:bg-muted/50 transition-colors"
-                  >
-                    <User className="w-5 h-5" />
-                    My Profile
-                  </Link>
-                  <Link
-                    to="/orders"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center gap-3 py-3 px-3 rounded-md text-foreground hover:bg-muted/50 transition-colors"
-                  >
-                    <Package className="w-5 h-5" />
-                    My Orders
-                  </Link>
-                  <Link
-                    to="/membership"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center gap-3 py-3 px-3 rounded-md text-foreground hover:bg-muted/50 transition-colors"
-                  >
-                    <Crown className="w-5 h-5" />
-                    Membership
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-3 w-full py-3 px-3 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
-                  >
-                    <LogOut className="w-5 h-5" />
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <Button
-                    onClick={() => {
-                      navigate("/login");
-                      setIsMobileMenuOpen(false);
-                    }}
-                    variant="default"
-                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
-                  >
-                    Sign In
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      navigate("/signup");
-                      setIsMobileMenuOpen(false);
-                    }}
-                    variant="outline"
-                    className="w-full border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
-                  >
-                    Create Account
-                  </Button>
-                </div>
-              )}
-            </div>
-          </nav>
-        </div>
-      )}
     </header>
   );
 };
