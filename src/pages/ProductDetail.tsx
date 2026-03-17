@@ -1,4 +1,3 @@
-// src/pages/ProductDetail.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -21,6 +20,20 @@ import { toast } from "@/hooks/use-toast";
 const API_BASE = "https://api.jsgallor.com/api";
 const DISCOUNT_PERCENT = 10;
 
+type ApiVariant = {
+  _id?: string;
+  attributes: {
+    size?: string;
+    color?: string;
+    fabric?: string;
+  };
+  sku: string;
+  price: number;
+  quantity: number;
+  lowStockThreshold: number;
+  image?: string;
+};
+
 type ProductDB = {
   _id: string;
   name: string;
@@ -40,10 +53,42 @@ type ProductDB = {
 
   material?: string;
 
-  // 👇 updated: can be arrays or strings (for backward compatibility)
+  // 👇 can be arrays or strings
   color?: string | string[];
   size?: string | string[];
 
+  // NEW FIELDS
+  fabricTypes?: string[];
+  extraPillows?: number;
+  hasVariants?: boolean;
+  variants?: ApiVariant[];
+
+  deliveryTime?: string;
+};
+
+type UiProduct = {
+  id: string;
+  _id: string;
+  name: string;
+  category: string;
+  description: string;
+  price: number;
+  originalPrice: number;
+  finalPrice: number;
+  discountPercent: number;
+  discountAmount: number;
+  image: string;
+  images: string[];
+  inStock: boolean;
+  colors: string[];
+  sizes: string[];
+  fabrics: string[];
+  quantity: number;
+  material: string;
+  weight?: string;
+  extraPillows?: number;
+  hasVariants: boolean;
+  variants?: ApiVariant[];
   deliveryTime?: string;
 };
 
@@ -82,35 +127,67 @@ function isHexColor(v: string) {
   return /^#([0-9a-fA-F]{3}){1,2}$/.test(v.trim());
 }
 
-function mapDbToCartProduct(
-  p: ProductDB,
-  selectedColor?: string,
-  selectedSize?: string
-): CartProduct {
-  const { discountAmount, finalPrice } = computeDiscount(p.price, DISCOUNT_PERCENT);
+// Helper to get color name from hex (for display)
+const getColorName = (hex: string) => {
+  const colors: Record<string, string> = {
+    "#8B7355": "Brown",
+    "#1C1C1C": "Black",
+    "#F5E6D3": "White",
+    "#4A4A4A": "Grey",
+    "#4A6741": "Green",
+    "#2C3E50": "Blue",
+  };
+  return colors[hex.toUpperCase()] || hex;
+};
+
+function mapDbToUiProduct(p: ProductDB): UiProduct {
+  const images = p.galleryImages && p.galleryImages.length > 0
+    ? [p.image, ...p.galleryImages]
+    : [p.image];
+
+  const colors = toArray(p.color);
+  const sizes = toArray(p.size);
+  const fabrics = Array.isArray(p.fabricTypes) ? p.fabricTypes : (p.fabricTypes ? [p.fabricTypes] : []);
+
+  const hasVariants = p.hasVariants && Array.isArray(p.variants) && p.variants.length > 0;
+
+  let totalQty = 0;
+  if (hasVariants && p.variants) {
+    totalQty = p.variants.reduce((sum, v) => sum + (v.quantity || 0), 0);
+  } else {
+    totalQty = Number(p.quantity ?? 0);
+  }
+
+  const availability = String(p.availability || "").toLowerCase();
+  const inStock = totalQty > 0 && (availability.includes("in stock") || availability === "");
+
+  // For the base price, we'll use p.price (the original price). For variants, the price will be overridden.
+  const originalPrice = Number(p.price || 0);
+  const { discountAmount, finalPrice } = computeDiscount(originalPrice, DISCOUNT_PERCENT);
 
   return {
     id: p._id,
+    _id: p._id,
     name: p.name,
     category: p.category,
-
-    price: Number(p.price || 0),
+    description: p.description || p.shortDescription || "",
+    price: originalPrice,
+    originalPrice,
     finalPrice,
     discountPercent: DISCOUNT_PERCENT,
     discountAmount,
-
     image: p.image,
-    galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
-
-    material: p.material,
-    // store the user’s selection (fallback to product value if single)
-    color: selectedColor || (toArray(p.color).length === 1 ? toArray(p.color)[0] : undefined),
-    size: selectedSize,
-
-    availability: p.availability,
-    stockQty: p.quantity,
-
-    description: p.description || p.shortDescription || "",
+    images,
+    inStock,
+    colors,
+    sizes,
+    fabrics,
+    quantity: totalQty,
+    material: p.material || "—",
+    extraPillows: p.extraPillows,
+    hasVariants,
+    variants: p.variants,
+    deliveryTime: p.deliveryTime,
   };
 }
 
@@ -127,8 +204,9 @@ const ProductDetail = () => {
   const [selectedImage, setSelectedImage] = useState<string>("");
 
   // selections
-  const [selectedColor, setSelectedColor] = useState<string>("");
-  const [selectedSize, setSelectedSize] = useState<string>("");
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedFabric, setSelectedFabric] = useState<string | null>(null);
 
   // fetch product by id
   useEffect(() => {
@@ -159,15 +237,21 @@ const ProductDetail = () => {
 
         if (alive) {
           setProductDb(p);
+          const ui = mapDbToUiProduct(p);
           setSelectedImage(p.image);
 
-          // compute arrays
-          const colorOpts = toArray(p.color);
-          const sizeOpts = toArray(p.size);
-
-          // auto-select if only one option
-          setSelectedColor(colorOpts.length === 1 ? colorOpts[0] : "");
-          setSelectedSize(sizeOpts.length === 1 ? sizeOpts[0] : "");
+          // Auto-select first available options
+          if (ui.hasVariants && ui.variants) {
+            const firstVariant = ui.variants[0];
+            if (firstVariant) {
+              setSelectedColor(firstVariant.attributes.color || null);
+              setSelectedSize(firstVariant.attributes.size || null);
+              setSelectedFabric(firstVariant.attributes.fabric || null);
+            }
+          } else {
+            if (ui.colors.length === 1) setSelectedColor(ui.colors[0]);
+            if (ui.sizes.length === 1) setSelectedSize(ui.sizes[0]);
+          }
         }
       } catch (e: any) {
         if (alive) setError(e?.message || "Something went wrong");
@@ -182,59 +266,158 @@ const ProductDetail = () => {
     };
   }, [id]);
 
-  const colorOptions = useMemo(() => toArray(productDb?.color), [productDb?.color]);
-  const sizeOptions = useMemo(() => toArray(productDb?.size), [productDb?.size]);
+  const uiProduct = useMemo(() => {
+    return productDb ? mapDbToUiProduct(productDb) : null;
+  }, [productDb]);
 
-  const product = useMemo(() => {
-    return productDb ? mapDbToCartProduct(productDb, selectedColor, selectedSize) : null;
-  }, [productDb, selectedColor, selectedSize]);
+  // For variant products, find the currently selected variant based on attributes
+  const selectedVariant = useMemo(() => {
+    if (!uiProduct?.hasVariants || !uiProduct.variants) return null;
+
+    const match = uiProduct.variants.find(v => {
+      const colorMatch = !selectedColor || v.attributes.color === selectedColor;
+      const sizeMatch = !selectedSize || v.attributes.size === selectedSize;
+      const fabricMatch = !selectedFabric || v.attributes.fabric === selectedFabric;
+      return colorMatch && sizeMatch && fabricMatch;
+    });
+    return match || null;
+  }, [uiProduct, selectedColor, selectedSize, selectedFabric]);
+
+  // Update price, stock, image based on selected variant
+  const displayPrice = useMemo(() => {
+    if (selectedVariant) return selectedVariant.price;
+    return uiProduct?.price || 0;
+  }, [uiProduct, selectedVariant]);
+
+  const displayFinalPrice = useMemo(() => {
+    const { finalPrice } = computeDiscount(displayPrice, DISCOUNT_PERCENT);
+    return finalPrice;
+  }, [displayPrice]);
+
+  const displayStock = useMemo(() => {
+    if (selectedVariant) return selectedVariant.quantity;
+    return uiProduct?.quantity || 0;
+  }, [uiProduct, selectedVariant]);
+
+  const inStock = displayStock > 0;
+
+  // For variant products, we can also show a variant-specific image if available
+  const displayImage = useMemo(() => {
+    if (selectedVariant?.image) return selectedVariant.image;
+    return selectedImage || uiProduct?.image || "";
+  }, [selectedVariant, selectedImage, uiProduct]);
+
+  // Collect unique option values for variant products
+  const availableColors = useMemo(() => {
+    if (!uiProduct?.hasVariants || !uiProduct.variants) return uiProduct?.colors || [];
+    const colors = new Set<string>();
+    uiProduct.variants.forEach(v => {
+      if (v.attributes.color) colors.add(v.attributes.color);
+    });
+    return Array.from(colors);
+  }, [uiProduct]);
+
+  const availableSizes = useMemo(() => {
+    if (!uiProduct?.hasVariants || !uiProduct.variants) return uiProduct?.sizes || [];
+    const sizes = new Set<string>();
+    uiProduct.variants.forEach(v => {
+      if (v.attributes.size) sizes.add(v.attributes.size);
+    });
+    return Array.from(sizes);
+  }, [uiProduct]);
+
+  const availableFabrics = useMemo(() => {
+    if (!uiProduct?.hasVariants || !uiProduct.variants) return uiProduct?.fabrics || [];
+    const fabrics = new Set<string>();
+    uiProduct.variants.forEach(v => {
+      if (v.attributes.fabric) fabrics.add(v.attributes.fabric);
+    });
+    return Array.from(fabrics);
+  }, [uiProduct]);
 
   const images = useMemo(() => {
-    if (!product) return [];
-    const list = [product.image, ...(product.galleryImages || [])].filter(Boolean);
+    if (!uiProduct) return [];
+    // For variant products, we could also include variant images if they exist, but for simplicity we'll use product images
+    const list = [uiProduct.image, ...(uiProduct.images || [])].filter(Boolean);
     return Array.from(new Set(list));
-  }, [product]);
+  }, [uiProduct]);
 
   const rating = 4.5;
   const reviews = 120;
 
-  const requireColor = colorOptions.length > 1; // if multiple, user must pick
-  const requireSize = sizeOptions.length > 1;
+  const requireColor = availableColors.length > 1;
+  const requireSize = availableSizes.length > 1;
+  const requireFabric = availableFabrics.length > 1;
 
   const validateSelections = () => {
-    if (requireColor && !selectedColor) {
-      toast({ title: "Select a color", description: "Please choose a color to continue." });
-      return false;
-    }
-    if (requireSize && !selectedSize) {
-      toast({ title: "Select a size", description: "Please choose a size to continue." });
-      return false;
+    if (uiProduct?.hasVariants) {
+      if (requireColor && !selectedColor) {
+        toast({ title: "Select a color", description: "Please choose a color to continue." });
+        return false;
+      }
+      if (requireSize && !selectedSize) {
+        toast({ title: "Select a size", description: "Please choose a size to continue." });
+        return false;
+      }
+      if (requireFabric && !selectedFabric) {
+        toast({ title: "Select a fabric", description: "Please choose a fabric to continue." });
+        return false;
+      }
+      if (uiProduct.hasVariants && !selectedVariant) {
+        toast({ title: "Invalid combination", description: "The selected combination is not available." });
+        return false;
+      }
     }
     return true;
   };
 
   const handleAddToCart = async () => {
-    if (!product) return;
+    if (!uiProduct) return;
 
     if (!validateSelections()) return;
 
-    if (product.availability === "Out of Stock" || (product.stockQty ?? 1) <= 0) {
+    if (!inStock) {
       toast({ title: "Out of stock", description: "This product is currently unavailable." });
       return;
     }
 
-    await addToCart(product, quantity);
+    // Build attributes object
+    const attributes: { size?: string; color?: string; fabric?: string } = {};
+    if (selectedSize) attributes.size = selectedSize;
+    if (selectedColor) attributes.color = selectedColor;
+    if (selectedFabric) attributes.fabric = selectedFabric;
+
+    // Prepare product object for cart context
+    const cartProduct = {
+      id: uiProduct._id,
+      name: uiProduct.name,
+      category: uiProduct.category,
+      price: displayPrice,
+      finalPrice: displayFinalPrice,
+      discountPercent: DISCOUNT_PERCENT,
+      discountAmount: displayPrice - displayFinalPrice,
+      image: uiProduct.image,
+      galleryImages: uiProduct.images,
+      material: uiProduct.material,
+      color: selectedColor || undefined,
+      size: selectedSize || undefined,
+      availability: inStock ? "In Stock" : "Out of Stock",
+      stockQty: displayStock,
+      description: uiProduct.description,
+    };
+
+    await addToCart(cartProduct, quantity, selectedVariant, attributes);
 
     toast({
       title: "Added to cart",
-      description: `${quantity}x ${product.name}${
-        selectedColor ? ` • Color: ${selectedColor}` : ""
-      }${selectedSize ? ` • Size: ${selectedSize}` : ""} added.`,
+      description: `${quantity}x ${uiProduct.name}${
+        selectedColor ? ` • Color: ${getColorName(selectedColor)}` : ""
+      }${selectedSize ? ` • Size: ${selectedSize}` : ""}${selectedFabric ? ` • Fabric: ${selectedFabric}` : ""} added.`,
     });
   };
 
   const handleBuyNow = async () => {
-    if (!product) return;
+    if (!uiProduct) return;
 
     if (!validateSelections()) return;
 
@@ -244,16 +427,39 @@ const ProductDetail = () => {
       return;
     }
 
-    if (product.availability === "Out of Stock" || (product.stockQty ?? 1) <= 0) {
+    if (!inStock) {
       toast({ title: "Out of stock", description: "This product is currently unavailable." });
       return;
     }
 
-    await addToCart(product, quantity);
+    const attributes: { size?: string; color?: string; fabric?: string } = {};
+    if (selectedSize) attributes.size = selectedSize;
+    if (selectedColor) attributes.color = selectedColor;
+    if (selectedFabric) attributes.fabric = selectedFabric;
+
+    const cartProduct = {
+      id: uiProduct._id,
+      name: uiProduct.name,
+      category: uiProduct.category,
+      price: displayPrice,
+      finalPrice: displayFinalPrice,
+      discountPercent: DISCOUNT_PERCENT,
+      discountAmount: displayPrice - displayFinalPrice,
+      image: uiProduct.image,
+      galleryImages: uiProduct.images,
+      material: uiProduct.material,
+      color: selectedColor || undefined,
+      size: selectedSize || undefined,
+      availability: inStock ? "In Stock" : "Out of Stock",
+      stockQty: displayStock,
+      description: uiProduct.description,
+    };
+
+    await addToCart(cartProduct, quantity, selectedVariant, attributes);
 
     toast({
       title: "Proceeding to checkout",
-      description: `${quantity}x ${product.name} added.`,
+      description: `${quantity}x ${uiProduct.name} added.`,
     });
 
     navigate("/checkout");
@@ -274,7 +480,7 @@ const ProductDetail = () => {
                 Products
               </Link>
               <ChevronRight className="w-4 h-4 text-[#d6dfbd]" />
-              <span className="text-[#d6dfbd]">{product?.name || "Product"}</span>
+              <span className="text-[#d6dfbd]">{uiProduct?.name || "Product"}</span>
             </div>
           </div>
         </nav>
@@ -291,7 +497,7 @@ const ProductDetail = () => {
                 <div className="h-12 w-full bg-white/5 rounded animate-pulse" />
               </div>
             </div>
-          ) : error || !product ? (
+          ) : error || !uiProduct ? (
             <div className="text-center py-16">
               <p className="text-red-300 mb-3">{error || "Product not found"}</p>
               <Link to="/products">
@@ -309,14 +515,14 @@ const ProductDetail = () => {
               <div className="space-y-4">
                 <div className="relative aspect-square rounded-xl overflow-hidden bg-[#4b5e29]">
                   <img
-                    src={selectedImage || product.image}
-                    alt={product.name}
+                    src={displayImage}
+                    alt={uiProduct.name}
                     className="w-full h-full object-cover"
                   />
 
-                  {product.discountPercent > 0 && (
+                  {uiProduct.discountPercent > 0 && (
                     <span className="absolute top-4 left-4 bg-red-500 text-white text-sm font-bold px-3 py-1 rounded">
-                      -{product.discountPercent}%
+                      -{uiProduct.discountPercent}%
                     </span>
                   )}
                 </div>
@@ -328,7 +534,7 @@ const ProductDetail = () => {
                       key={img}
                       onClick={() => setSelectedImage(img)}
                       className={`w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                        selectedImage === img
+                        displayImage === img
                           ? "border-[#eef4df]"
                           : "border-transparent hover:border-[#d6dfbd]"
                       }`}
@@ -342,9 +548,9 @@ const ProductDetail = () => {
               {/* Info Section */}
               <div className="space-y-6">
                 <div>
-                  <p className="text-sm text-[#eef4df] mb-2">{product.category}</p>
+                  <p className="text-sm text-[#eef4df] mb-2">{uiProduct.category}</p>
                   <h1 className="text-2xl md:text-3xl font-bold text-[#f4f7ec] mb-3">
-                    {product.name}
+                    {uiProduct.name}
                   </h1>
 
                   {/* Rating */}
@@ -369,36 +575,36 @@ const ProductDetail = () => {
                   {/* Price */}
                   <div className="flex items-baseline gap-3 flex-wrap">
                     <span className="text-sm text-[#d6dfbd] line-through">
-                      {formatINR(product.price)}
+                      {formatINR(displayPrice)}
                     </span>
                     <span className="text-3xl font-bold text-[#eef4df]">
-                      {formatINR(product.finalPrice)}
+                      {formatINR(displayFinalPrice)}
                     </span>
                     <span className="text-sm text-[#d6dfbd]">
                       You save{" "}
                       <span className="font-semibold text-[#f4f7ec]">
-                        {formatINR(product.discountAmount)}
+                        {formatINR(displayPrice - displayFinalPrice)}
                       </span>
                     </span>
                   </div>
                 </div>
 
-                <p className="text-[#d6dfbd]">{product.description}</p>
+                <p className="text-[#d6dfbd]">{uiProduct.description}</p>
 
-                {/* ✅ Color selector (from array) */}
-                {colorOptions.length > 0 && (
+                {/* Color Selection */}
+                {availableColors.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium text-[#f4f7ec]">Color</p>
                       {selectedColor ? (
-                        <p className="text-xs text-[#d6dfbd]">{selectedColor}</p>
+                        <p className="text-xs text-[#d6dfbd]">{getColorName(selectedColor)}</p>
                       ) : requireColor ? (
                         <p className="text-xs text-red-300">Required</p>
                       ) : null}
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {colorOptions.map((c) => {
+                      {availableColors.map((c) => {
                         const selected = selectedColor === c;
                         const isHex = isHexColor(c);
                         return (
@@ -410,7 +616,7 @@ const ProductDetail = () => {
                               selected ? "border-[#eef4df]" : "border-white/10 hover:border-[#d6dfbd]/40"
                             } ${isHex ? "w-10" : "px-3"}`}
                             aria-label={`Select color ${c}`}
-                            title={c}
+                            title={getColorName(c)}
                           >
                             {isHex ? (
                               <span
@@ -418,7 +624,7 @@ const ProductDetail = () => {
                                 style={{ backgroundColor: c }}
                               />
                             ) : (
-                              <span className="text-sm text-[#f4f7ec]">{c}</span>
+                              <span className="text-sm text-[#f4f7ec]">{getColorName(c)}</span>
                             )}
 
                             {selected && (
@@ -433,8 +639,8 @@ const ProductDetail = () => {
                   </div>
                 )}
 
-                {/* ✅ Size selector (from array) */}
-                {sizeOptions.length > 0 && (
+                {/* Size Selection */}
+                {availableSizes.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium text-[#f4f7ec]">Size</p>
@@ -446,7 +652,7 @@ const ProductDetail = () => {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      {sizeOptions.map((s) => {
+                      {availableSizes.map((s) => {
                         const selected = selectedSize === s;
                         return (
                           <button
@@ -467,26 +673,60 @@ const ProductDetail = () => {
                   </div>
                 )}
 
+                {/* Fabric Selection */}
+                {availableFabrics.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-[#f4f7ec]">Fabric</p>
+                      {selectedFabric ? (
+                        <p className="text-xs text-[#d6dfbd] capitalize">{selectedFabric}</p>
+                      ) : requireFabric ? (
+                        <p className="text-xs text-red-300">Required</p>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {availableFabrics.map((f) => {
+                        const selected = selectedFabric === f;
+                        return (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setSelectedFabric(f)}
+                            className={`h-10 px-3 rounded-lg border text-sm transition-all capitalize ${
+                              selected
+                                ? "border-[#eef4df] bg-[#eef4df]/10 text-[#f4f7ec]"
+                                : "border-white/10 hover:border-[#d6dfbd]/40 text-[#d6dfbd] hover:text-[#f4f7ec]"
+                            }`}
+                          >
+                            {f}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Details */}
                 <div className="bg-[#4b5e29] rounded-lg p-4 space-y-3">
                   <div className="flex">
                     <span className="w-32 text-[#d6dfbd] text-sm">Material</span>
-                    <span className="text-[#f4f7ec] text-sm">{product.material || "-"}</span>
+                    <span className="text-[#f4f7ec] text-sm">{uiProduct.material || "-"}</span>
                   </div>
 
                   <div className="flex">
                     <span className="w-32 text-[#d6dfbd] text-sm">Availability</span>
                     <span
                       className={`text-sm ${
-                        product.availability === "In Stock"
+                        inStock
                           ? "text-green-300"
-                          : product.availability === "Low Stock"
-                          ? "text-yellow-500"
-                          : "text-red-300"
+                          : displayStock <= 0
+                          ? "text-red-300"
+                          : "text-yellow-500"
                       }`}
                     >
-                      {product.availability || "—"}
-                      {typeof product.stockQty === "number" ? ` (${product.stockQty})` : ""}
+                      {inStock ? "In Stock" : displayStock > 0 ? "Low Stock" : "Out of Stock"}
+                      {` (${displayStock})`}
                     </span>
                   </div>
                 </div>
@@ -504,8 +744,9 @@ const ProductDetail = () => {
                       </button>
                       <span className="w-12 text-center font-semibold text-[#f4f7ec]">{quantity}</span>
                       <button
-                        onClick={() => setQuantity(quantity + 1)}
+                        onClick={() => setQuantity(Math.min(displayStock, quantity + 1))}
                         className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-[#eef4df]"
+                        disabled={quantity >= displayStock}
                       >
                         <Plus className="w-4 h-4" />
                       </button>
@@ -518,19 +759,18 @@ const ProductDetail = () => {
                       size="lg"
                       className="flex-1 border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
                       onClick={handleAddToCart}
-                      disabled={product.availability === "Out of Stock"}
+                      disabled={!inStock || (uiProduct.hasVariants && !selectedVariant)}
                     >
                       <ShoppingCart className="w-5 h-5 mr-2" />
                       Add to Cart
                     </Button>
 
-                    {/* Buy Now */}
                     <Button
                       variant="default"
                       size="lg"
                       className="flex-1 bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]"
                       onClick={handleBuyNow}
-                      disabled={product.availability === "Out of Stock"}
+                      disabled={!inStock || (uiProduct.hasVariants && !selectedVariant)}
                     >
                       Buy Now
                     </Button>
@@ -561,10 +801,10 @@ const ProductDetail = () => {
                 </div>
 
                 {/* Optional Delivery */}
-                {productDb?.deliveryTime && productDb.deliveryTime.trim() && (
+                {uiProduct.deliveryTime && uiProduct.deliveryTime.trim() && (
                   <div className="text-sm text-[#d6dfbd]">
                     Delivery Time:{" "}
-                    <span className="font-medium text-[#f4f7ec]">{productDb.deliveryTime}</span>
+                    <span className="font-medium text-[#f4f7ec]">{uiProduct.deliveryTime}</span>
                   </div>
                 )}
               </div>

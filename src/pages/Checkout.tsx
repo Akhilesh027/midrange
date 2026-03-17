@@ -1,6 +1,7 @@
 // src/pages/Checkout.tsx
 // ✅ Updated: Midrange Checkout with dynamic shipping by city + optional pincode
 // ✅ Styled consistently with Index & Cart (earthy green theme)
+// ✅ Now displays variant attributes (size, color, fabric) in order summary
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -128,6 +129,19 @@ const loadRazorpay = () =>
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
   });
+
+// Helper to get color name from hex
+const getColorName = (hex: string) => {
+  const colors: Record<string, string> = {
+    "#8B7355": "Brown",
+    "#1C1C1C": "Black",
+    "#F5E6D3": "White",
+    "#4A4A4A": "Grey",
+    "#4A6741": "Green",
+    "#2C3E50": "Blue",
+  };
+  return colors[hex.toUpperCase()] || hex;
+};
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -1048,16 +1062,22 @@ export default function Checkout() {
                 <div className="space-y-4 mb-5">
                   {items.map((item: any) => {
                     const qty = item.quantity || 1;
-                    const price =
-                      typeof item.product?.price === "number"
-                        ? item.product.price
-                        : item?.productSnapshot?.price || 0;
+                    const product = item.product || {};
+                    const snapshot = item.productSnapshot || {};
 
-                    const name = item.product?.name || item?.productSnapshot?.name || "Product";
-                    const image = item.product?.image || item?.productSnapshot?.image || "";
+                    const price =
+                      typeof product.price === "number"
+                        ? product.price
+                        : snapshot.price || 0;
+
+                    const name = product.name || snapshot.name || "Product";
+                    const image = product.image || snapshot.image || "";
+
+                    // ✅ Variant attributes (from product.variantAttributes or item.attributes)
+                    const variantAttributes = product.variantAttributes || item.attributes || {};
 
                     return (
-                      <div key={item._id || item.productId || name} className="flex gap-3 items-start">
+                      <div key={item._id || `${item.productId}-${product.variantId}`} className="flex gap-3 items-start">
                         <div className="w-16 h-16 rounded-lg overflow-hidden border border-white/10 bg-white/5 flex items-center justify-center">
                           {image ? (
                             <img src={image} alt={name} className="w-full h-full object-cover" />
@@ -1068,6 +1088,31 @@ export default function Checkout() {
 
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-[#f4f7ec] truncate">{name}</p>
+
+                          {/* ✅ Variant badges */}
+                          {(variantAttributes.color || variantAttributes.size || variantAttributes.fabric) && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {variantAttributes.color && (
+                                <span className="inline-flex items-center gap-1 bg-[#3f4f22] px-2 py-0.5 rounded-full text-xs text-[#f4f7ec]">
+                                  <span
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: variantAttributes.color }}
+                                  />
+                                  {getColorName(variantAttributes.color)}
+                                </span>
+                              )}
+                              {variantAttributes.size && (
+                                <span className="bg-[#3f4f22] px-2 py-0.5 rounded-full text-xs text-[#f4f7ec]">
+                                  Size: {variantAttributes.size}
+                                </span>
+                              )}
+                              {variantAttributes.fabric && (
+                                <span className="bg-[#3f4f22] px-2 py-0.5 rounded-full text-xs text-[#f4f7ec] capitalize">
+                                  {variantAttributes.fabric}
+                                </span>
+                              )}
+                            </div>
+                          )}
 
                           <div className="flex items-center justify-between mt-1">
                             <span className="text-xs text-[#d6dfbd]">Qty: {qty}</span>

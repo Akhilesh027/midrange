@@ -66,6 +66,19 @@ function getSavedUserId(): string | null {
   }
 }
 
+// Helper to get color name from hex (if needed)
+const getColorName = (hex: string) => {
+  const colors: Record<string, string> = {
+    "#8B7355": "Brown",
+    "#1C1C1C": "Black",
+    "#F5E6D3": "White",
+    "#4A4A4A": "Grey",
+    "#4A6741": "Green",
+    "#2C3E50": "Blue",
+  };
+  return colors[hex.toUpperCase()] || hex;
+};
+
 const Cart = () => {
   const navigate = useNavigate();
   const { items, updateQuantity, removeFromCart, totalPrice, clearCart } = useCart();
@@ -241,7 +254,7 @@ const Cart = () => {
           cartTotal: Number(totalPrice) || 0,
           shipping: Number(shippingBase) || 0,
           userId: userId || undefined,
-          items: buildCouponItemsPayload(), // ✅ required for category coupons
+          items: buildCouponItemsPayload(),
         }),
       });
 
@@ -318,7 +331,7 @@ const Cart = () => {
     toast.message("Coupon removed");
   };
 
-  // ✅ re-check coupon whenever price/cart changes
+  // re-check coupon whenever price/cart changes
   useEffect(() => {
     if (!couponApplied?.code) return;
     applyCouponInternal(couponApplied.code, true);
@@ -417,6 +430,10 @@ const Cart = () => {
                 {items.map((item: any) => {
                   const product = item.product || {};
                   const snap = item.productSnapshot || {};
+
+                  // Unique identifier for cart operations
+                  const itemId = item._id || `${product.id}:${product.variantId || ''}`;
+
                   const productId = product.id || product._id || item.productId;
                   const image = product.image || snap.image || "";
                   const name = product.name || snap.name || "Product";
@@ -436,9 +453,12 @@ const Cart = () => {
                       0
                   );
 
+                  // Variant attributes
+                  const variantAttributes = product.variantAttributes || {};
+
                   return (
                     <div
-                      key={productId}
+                      key={itemId}
                       className="grid grid-cols-1 md:grid-cols-12 gap-4 px-4 md:px-6 py-4 border-b border-white/10 last:border-b-0"
                     >
                       <div className="md:col-span-6 flex gap-4">
@@ -459,8 +479,32 @@ const Cart = () => {
                           <p className="text-sm text-[#d6dfbd]">
                             {typeof category === "string" ? category : ""}
                           </p>
+                          {/* Display variant attributes */}
+                          {(variantAttributes.color || variantAttributes.size || variantAttributes.fabric) && (
+                            <div className="flex flex-wrap gap-2 mt-1 text-xs">
+                              {variantAttributes.color && (
+                                <span className="inline-flex items-center gap-1 bg-[#3f4f22] px-2 py-0.5 rounded-full">
+                                  <span
+                                    className="w-3 h-3 rounded-full"
+                                    style={{ backgroundColor: variantAttributes.color }}
+                                  />
+                                  {getColorName(variantAttributes.color)}
+                                </span>
+                              )}
+                              {variantAttributes.size && (
+                                <span className="bg-[#3f4f22] px-2 py-0.5 rounded-full">
+                                  Size: {variantAttributes.size}
+                                </span>
+                              )}
+                              {variantAttributes.fabric && (
+                                <span className="bg-[#3f4f22] px-2 py-0.5 rounded-full capitalize">
+                                  {variantAttributes.fabric}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <button
-                            onClick={() => removeFromCart(productId)}
+                            onClick={() => removeFromCart(itemId)}
                             className="mt-2 text-sm text-red-300 hover:underline flex items-center gap-1 md:hidden"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -478,7 +522,7 @@ const Cart = () => {
                         <span className="md:hidden text-[#d6dfbd] text-sm">Quantity:</span>
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => updateQuantity(productId, item.quantity - 1)}
+                            onClick={() => updateQuantity(itemId, item.quantity - 1)}
                             className="w-8 h-8 rounded bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-[#eef4df]"
                             disabled={item.quantity <= 1}
                           >
@@ -486,7 +530,7 @@ const Cart = () => {
                           </button>
                           <span className="w-10 text-center text-sm text-[#f4f7ec]">{item.quantity}</span>
                           <button
-                            onClick={() => updateQuantity(productId, item.quantity + 1)}
+                            onClick={() => updateQuantity(itemId, item.quantity + 1)}
                             className="w-8 h-8 rounded bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-[#eef4df]"
                           >
                             <Plus className="w-3 h-3" />
@@ -500,7 +544,7 @@ const Cart = () => {
                           {formatPrice(price * item.quantity)}
                         </span>
                         <button
-                          onClick={() => removeFromCart(productId)}
+                          onClick={() => removeFromCart(itemId)}
                           className="hidden md:block text-[#d6dfbd] hover:text-red-300 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
