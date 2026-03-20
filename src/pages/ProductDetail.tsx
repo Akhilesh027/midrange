@@ -18,7 +18,6 @@ import { useCart, CartProduct } from "@/context/CartContext";
 import { toast } from "@/hooks/use-toast";
 
 const API_BASE = "https://api.jsgallor.com/api";
-const DISCOUNT_PERCENT = 10;
 
 type ApiVariant = {
   _id?: string;
@@ -42,6 +41,7 @@ type ProductDB = {
   shortDescription?: string;
 
   price: number;
+  discount?: number;                    // NEW: discount percentage (0‑100)
   quantity: number;
   availability: "In Stock" | "Low Stock" | "Out of Stock";
 
@@ -53,11 +53,9 @@ type ProductDB = {
 
   material?: string;
 
-  // 👇 can be arrays or strings
   color?: string | string[];
   size?: string | string[];
 
-  // NEW FIELDS
   fabricTypes?: string[];
   extraPillows?: number;
   hasVariants?: boolean;
@@ -72,10 +70,9 @@ type UiProduct = {
   name: string;
   category: string;
   description: string;
-  price: number;
-  originalPrice: number;
-  finalPrice: number;
-  discountPercent: number;
+  price: number;                // original price
+  discountPercent: number;      // from backend (or default 0)
+  finalPrice: number;           // computed after discount
   discountAmount: number;
   image: string;
   images: string[];
@@ -111,13 +108,11 @@ function getToken() {
   return localStorage.getItem("midrange_token");
 }
 
-// Helper to always get an array from possibly string/array field
 function toArray(value?: string | string[]): string[] {
   if (Array.isArray(value)) {
     return value.filter(Boolean);
   }
   if (typeof value === "string" && value.trim()) {
-    // For legacy comma-separated strings, split
     return value.split(/[,|]/g).map(s => s.trim()).filter(Boolean);
   }
   return [];
@@ -127,7 +122,6 @@ function isHexColor(v: string) {
   return /^#([0-9a-fA-F]{3}){1,2}$/.test(v.trim());
 }
 
-// Helper to get color name from hex (for display)
 const getColorName = (hex: string) => {
   const colors: Record<string, string> = {
     "#8B7355": "Brown",
@@ -161,9 +155,9 @@ function mapDbToUiProduct(p: ProductDB): UiProduct {
   const availability = String(p.availability || "").toLowerCase();
   const inStock = totalQty > 0 && (availability.includes("in stock") || availability === "");
 
-  // For the base price, we'll use p.price (the original price). For variants, the price will be overridden.
   const originalPrice = Number(p.price || 0);
-  const { discountAmount, finalPrice } = computeDiscount(originalPrice, DISCOUNT_PERCENT);
+  const discountPercent = p.discount ?? 0;   // use backend discount, default 0
+  const { discountAmount, finalPrice } = computeDiscount(originalPrice, discountPercent);
 
   return {
     id: p._id,
@@ -172,9 +166,8 @@ function mapDbToUiProduct(p: ProductDB): UiProduct {
     category: p.category,
     description: p.description || p.shortDescription || "",
     price: originalPrice,
-    originalPrice,
+    discountPercent,
     finalPrice,
-    discountPercent: DISCOUNT_PERCENT,
     discountAmount,
     image: p.image,
     images,
@@ -203,12 +196,10 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState<string>("");
 
-  // selections
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedFabric, setSelectedFabric] = useState<string | null>(null);
 
-  // fetch product by id
   useEffect(() => {
     let alive = true;
 
@@ -270,7 +261,6 @@ const ProductDetail = () => {
     return productDb ? mapDbToUiProduct(productDb) : null;
   }, [productDb]);
 
-  // For variant products, find the currently selected variant based on attributes
   const selectedVariant = useMemo(() => {
     if (!uiProduct?.hasVariants || !uiProduct.variants) return null;
 
@@ -283,16 +273,18 @@ const ProductDetail = () => {
     return match || null;
   }, [uiProduct, selectedColor, selectedSize, selectedFabric]);
 
-  // Update price, stock, image based on selected variant
-  const displayPrice = useMemo(() => {
+  // Determine original price (variant or product)
+  const originalPrice = useMemo(() => {
     if (selectedVariant) return selectedVariant.price;
     return uiProduct?.price || 0;
   }, [uiProduct, selectedVariant]);
 
-  const displayFinalPrice = useMemo(() => {
-    const { finalPrice } = computeDiscount(displayPrice, DISCOUNT_PERCENT);
-    return finalPrice;
-  }, [displayPrice]);
+  // Apply discount (product‑level) to the original price
+  const discountPercent = uiProduct?.discountPercent ?? 0;
+  const finalPrice = useMemo(() => {
+    const { finalPrice: fp } = computeDiscount(originalPrice, discountPercent);
+    return fp;
+  }, [originalPrice, discountPercent]);
 
   const displayStock = useMemo(() => {
     if (selectedVariant) return selectedVariant.quantity;
@@ -301,13 +293,11 @@ const ProductDetail = () => {
 
   const inStock = displayStock > 0;
 
-  // For variant products, we can also show a variant-specific image if available
   const displayImage = useMemo(() => {
     if (selectedVariant?.image) return selectedVariant.image;
     return selectedImage || uiProduct?.image || "";
   }, [selectedVariant, selectedImage, uiProduct]);
 
-  // Collect unique option values for variant products
   const availableColors = useMemo(() => {
     if (!uiProduct?.hasVariants || !uiProduct.variants) return uiProduct?.colors || [];
     const colors = new Set<string>();
@@ -337,7 +327,6 @@ const ProductDetail = () => {
 
   const images = useMemo(() => {
     if (!uiProduct) return [];
-    // For variant products, we could also include variant images if they exist, but for simplicity we'll use product images
     const list = [uiProduct.image, ...(uiProduct.images || [])].filter(Boolean);
     return Array.from(new Set(list));
   }, [uiProduct]);
@@ -381,21 +370,19 @@ const ProductDetail = () => {
       return;
     }
 
-    // Build attributes object
     const attributes: { size?: string; color?: string; fabric?: string } = {};
     if (selectedSize) attributes.size = selectedSize;
     if (selectedColor) attributes.color = selectedColor;
     if (selectedFabric) attributes.fabric = selectedFabric;
 
-    // Prepare product object for cart context
     const cartProduct = {
       id: uiProduct._id,
       name: uiProduct.name,
       category: uiProduct.category,
-      price: displayPrice,
-      finalPrice: displayFinalPrice,
-      discountPercent: DISCOUNT_PERCENT,
-      discountAmount: displayPrice - displayFinalPrice,
+      price: originalPrice,               // original price (for reference)
+      finalPrice: finalPrice,             // discounted price
+      discountPercent: discountPercent,
+      discountAmount: originalPrice - finalPrice,
       image: uiProduct.image,
       galleryImages: uiProduct.images,
       material: uiProduct.material,
@@ -441,10 +428,10 @@ const ProductDetail = () => {
       id: uiProduct._id,
       name: uiProduct.name,
       category: uiProduct.category,
-      price: displayPrice,
-      finalPrice: displayFinalPrice,
-      discountPercent: DISCOUNT_PERCENT,
-      discountAmount: displayPrice - displayFinalPrice,
+      price: originalPrice,
+      finalPrice: finalPrice,
+      discountPercent: discountPercent,
+      discountAmount: originalPrice - finalPrice,
       image: uiProduct.image,
       galleryImages: uiProduct.images,
       material: uiProduct.material,
@@ -520,9 +507,9 @@ const ProductDetail = () => {
                     className="w-full h-full object-cover"
                   />
 
-                  {uiProduct.discountPercent > 0 && (
+                  {discountPercent > 0 && (
                     <span className="absolute top-4 left-4 bg-red-500 text-white text-sm font-bold px-3 py-1 rounded">
-                      -{uiProduct.discountPercent}%
+                      -{discountPercent}%
                     </span>
                   )}
                 </div>
@@ -574,18 +561,22 @@ const ProductDetail = () => {
 
                   {/* Price */}
                   <div className="flex items-baseline gap-3 flex-wrap">
-                    <span className="text-sm text-[#d6dfbd] line-through">
-                      {formatINR(displayPrice)}
-                    </span>
-                    <span className="text-3xl font-bold text-[#eef4df]">
-                      {formatINR(displayFinalPrice)}
-                    </span>
-                    <span className="text-sm text-[#d6dfbd]">
-                      You save{" "}
-                      <span className="font-semibold text-[#f4f7ec]">
-                        {formatINR(displayPrice - displayFinalPrice)}
+                    {discountPercent > 0 && (
+                      <span className="text-sm text-[#d6dfbd] line-through">
+                        {formatINR(originalPrice)}
                       </span>
+                    )}
+                    <span className="text-3xl font-bold text-[#eef4df]">
+                      {formatINR(finalPrice)}
                     </span>
+                    {discountPercent > 0 && (
+                      <span className="text-sm text-[#d6dfbd]">
+                        You save{" "}
+                        <span className="font-semibold text-[#f4f7ec]">
+                          {formatINR(originalPrice - finalPrice)}
+                        </span>
+                      </span>
+                    )}
                   </div>
                 </div>
 
