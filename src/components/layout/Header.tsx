@@ -265,7 +265,7 @@ export const Header = () => {
             </div>
             <div className="hidden sm:block">
               <div className="text-lg font-bold text-[#f7ecd7] group-hover:text-[#ffe8b3] transition-colors">
-                JS GALLOR
+                JSGALLOR
               </div>
               <div className="text-xs text-[#cdbf9e]">Mid-range Furniture</div>
             </div>
@@ -294,6 +294,25 @@ export const Header = () => {
               <Search className="w-5 h-5" />
             </button>
 
+  <div className="hidden md:flex items-center gap-2">
+    <a
+      href="https://essentialstudio.jsgallor.com"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="px-3 py-1.5 text-xs font-medium rounded-full border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
+    >
+      Essentials Studio
+    </a>
+
+    <a
+      href="https://celestialiving.jsgallor.com"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="px-3 py-1.5 text-xs font-medium rounded-full border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
+    >
+      Celestia Living
+    </a>
+  </div>
             {/* ✅ Location button with live detection */}
             <button
               onClick={getUserLocation}
@@ -406,7 +425,26 @@ export const Header = () => {
                             </span>
                           )}
                         </button>
+{/* ✅ NEW BUTTONS - Mobile */}
+<div className="flex flex-col gap-2 mb-4">
+  <a
+    href="https://essentialstudio.jsgallor.com"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="w-full text-center px-4 py-2 text-sm rounded-lg border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
+  >
+    Essentials Studio
+  </a>
 
+  <a
+    href="https://celestialiving.jsgallor.com"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="w-full text-center px-4 py-2 text-sm rounded-lg border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
+  >
+    Celestia Living
+  </a>
+</div>
                         <Link
                           to="/orders"
                           onClick={() => setIsUserMenuOpen(false)}

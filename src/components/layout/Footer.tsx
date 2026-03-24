@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Facebook, Instagram, Youtube } from "lucide-react";
+import { Facebook, Instagram, Youtube, MapPin } from "lucide-react";
 import logo from "../../Image/JSGALORE.png";
 
 export const Footer = () => {
@@ -7,6 +7,7 @@ export const Footer = () => {
     <footer className="bg-[#3f4f22] border-t border-white/10 mt-auto text-[#f7ecd7]">
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+
           {/* Logo + About */}
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center gap-3 mb-4 group">
@@ -22,6 +23,11 @@ export const Footer = () => {
             <p className="text-[#cdbf9e] text-sm leading-relaxed">
               Mid-range furniture handcrafted for modern Indian homes. Quality,
               style, and affordability combined.
+            </p>
+
+            {/* 🔥 Added line */}
+            <p className="text-[#ffe8b3] text-sm mt-3 font-medium">
+              We deal with premium manufacturers only.
             </p>
           </div>
 
@@ -61,9 +67,9 @@ export const Footer = () => {
             </ul>
           </div>
 
-          {/* Social & Contact */}
+          {/* Contact + Locations */}
           <div>
-            <h4 className="text-[#f7ecd7] font-semibold mb-4">Follow Us</h4>
+            <h4 className="text-[#f7ecd7] font-semibold mb-4">Contact</h4>
 
             <div className="flex gap-3 mb-6">
               <a
@@ -88,12 +94,31 @@ export const Footer = () => {
               </a>
             </div>
 
-            <p className="text-[#cdbf9e] text-sm leading-relaxed">
-              support@jsgallor.com
-              <br />
+            {/* Contact Info */}
+            <p className="text-[#cdbf9e] text-sm leading-relaxed mb-4">
+              support@jsgallor.com <br />
               +91 98765 43210
             </p>
+
+            {/* Locations ✅ */}
+            <div className="space-y-3 text-sm text-[#cdbf9e]">
+              <div className="flex gap-2 items-start">
+                <MapPin className="w-4 h-4 mt-1 text-[#ffe8b3]" />
+                <span>
+                  WorkFlo Bizness Square, 4th Floor, Jubilee Enclave,
+                  Madhapur, Telangana – 500081
+                </span>
+              </div>
+
+              <div className="flex gap-2 items-start">
+                <MapPin className="w-4 h-4 mt-1 text-[#ffe8b3]" />
+                <span>
+                  Uppal, Hyderabad, Telangana – 500039
+                </span>
+              </div>
+            </div>
           </div>
+
         </div>
       </div>
 
@@ -101,7 +126,7 @@ export const Footer = () => {
       <div className="border-t border-white/10">
         <div className="container mx-auto px-4 py-4">
           <p className="text-center text-[#bfae87] text-sm">
-            © 2025 JSGALLOR || All rights reserved
+            © 2026 JSGALLOR || All rights reserved
           </p>
         </div>
       </div>

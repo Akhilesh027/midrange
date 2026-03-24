@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Star, Truck, Shield, Headphones } from "lucide-react";
+import { ArrowRight, Star, Truck, Shield, Headphones, RefreshCw, RefreshCcw } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Button } from "@/components/ui/button";
@@ -334,11 +334,11 @@ export default function Index() {
                 {
                   icon: Truck,
                   title: "Free Delivery",
-                  desc: "On orders above ₹10,000",
+                  desc: "On All Orders",
                 },
                 {
                   icon: Shield,
-                  title: "2 Year Warranty",
+                  title: "5 Year Warranty",
                   desc: "On all furniture",
                 },
                 {
@@ -346,11 +346,8 @@ export default function Index() {
                   title: "24/7 Support",
                   desc: "Expert assistance",
                 },
-                {
-                  icon: Star,
-                  title: "Premium Quality",
-                  desc: "Handcrafted pieces",
-                },
+                  { icon: RefreshCcw, title: "Only Replacement", desc: "Replacement available for damaged items" },
+
               ].map((feature, idx) => (
                 <div
                   key={feature.title}
