@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Star, Truck, Shield, Headphones, RefreshCw, RefreshCcw } from "lucide-react";
+import { ArrowRight, Truck, Shield, Headphones, RefreshCcw } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Button } from "@/components/ui/button";
+import { ProductSlider } from "@/components/layout/ProductSlider"; // adjust path as needed
 
 // ✅ APIs
 const API_PRODUCTS = "https://api.jsgallor.com/api/midrange/products";
@@ -208,15 +209,15 @@ export default function Index() {
     };
   }, []);
 
-  const heroProduct = featured[0];
-
-  const heroPrice = useMemo(() => {
-    if (!heroProduct) return null;
-    return {
-      old: heroProduct.price,
-      new: heroProduct.finalPrice,
-    };
-  }, [heroProduct]);
+  // Prepare slider products from the featured array (first 4)
+  const sliderProducts = useMemo(() => {
+    return featured.slice(0, 4).map(p => ({
+      id: p.id,
+      name: p.name,
+      image: p.image,
+      price: { old: p.price, new: p.finalPrice }
+    }));
+  }, [featured]);
 
   return (
     <Layout>
@@ -271,53 +272,17 @@ export default function Index() {
                 className="relative animate-slide-up"
                 style={{ animationDelay: "0.2s" }}
               >
-                <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-                  <img
-                    src={
-                      heroProduct?.image ||
-                      "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80"
-                    }
-                    alt={heroProduct?.name || "Featured furniture"}
-                    className="w-full h-[400px] md:h-[500px] object-cover"
-                  />
-
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#1d240f]/80 via-[#1d240f]/20 to-transparent" />
-
-                  <div className="absolute bottom-6 left-6 right-6 rounded-2xl bg-[#f7faef]/10 backdrop-blur-md border border-[#f7faef]/20 p-4 shadow-lg">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="text-sm text-[#e0e8c9]/75">
-                          {loading ? "Loading..." : "Featured Product"}
-                        </p>
-                        <p className="font-semibold text-[#f8fbf2] truncate">
-                          {heroProduct?.name || "Milano Velvet Sofa"}
-                        </p>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        {heroPrice ? (
-                          <>
-                            <p className="text-sm text-[#d4ddba]/65 line-through">
-                              ₹{heroPrice.old.toLocaleString()}
-                            </p>
-                            <p className="text-xl font-bold text-[#f2f7e6]">
-                              ₹{heroPrice.new.toLocaleString()}
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-sm text-[#d4ddba]/65 line-through">
-                              ₹1,49,900
-                            </p>
-                            <p className="text-xl font-bold text-[#f2f7e6]">
-                              ₹1,29,900
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                {loading ? (
+                  <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-gray-800 h-[400px] md:h-[500px] flex items-center justify-center">
+                    <p className="text-white/60">Loading products...</p>
                   </div>
-                </div>
+                ) : sliderProducts.length > 0 ? (
+                  <ProductSlider products={sliderProducts} autoSlideInterval={10000} />
+                ) : (
+                  <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-gray-800 h-[400px] md:h-[500px] flex items-center justify-center">
+                    <p className="text-white/60">No products available</p>
+                  </div>
+                )}
 
                 <div className="absolute -top-4 -right-4 w-24 h-24 rounded-full bg-[#eef4df]/10 blur-3xl" />
                 <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-black/10 blur-3xl" />
@@ -346,8 +311,7 @@ export default function Index() {
                   title: "24/7 Support",
                   desc: "Expert assistance",
                 },
-                  { icon: RefreshCcw, title: "Only Replacement", desc: "Replacement available for damaged items" },
-
+                { icon: RefreshCcw, title: "Only Replacement", desc: "Replacement available for damaged items" },
               ].map((feature, idx) => (
                 <div
                   key={feature.title}
