@@ -99,15 +99,11 @@ function mapDbToUI(p: ProductDB): CartProduct {
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // ✅ supports BOTH:
-  // 1) /products?cat=dining&sub=chairs
-  // 2) /categories/dining or /categories/dining/chairs
   const { categorySlug, subSlug } = useParams() as {
     categorySlug?: string;
     subSlug?: string;
   };
 
-  // URL sources (priority: path params > query params)
   const urlCategory = categorySlug || searchParams.get("cat") || "";
   const urlSub = subSlug || searchParams.get("sub") || "";
 
@@ -123,17 +119,14 @@ export default function Products() {
   const [selectedColor, setSelectedColor] = useState("");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  // ✅ categories for building dropdowns (segment=all + segment=midrange)
   const [cats, setCats] = useState<ApiCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
 
-  // keep local selects in sync if URL changes
   useEffect(() => {
     setSelectedCategory(urlCategory);
     setSelectedSubcategory(urlSub);
   }, [urlCategory, urlSub]);
 
-  // ✅ fetch categories (for midrange)
   useEffect(() => {
     const fetchCats = async () => {
       try {
@@ -151,7 +144,6 @@ export default function Products() {
         const a1: ApiCategory[] = Array.isArray(j1) ? j1 : j1?.data?.items || [];
         const a2: ApiCategory[] = Array.isArray(j2) ? j2 : j2?.data?.items || [];
 
-        // merge unique by slug
         const map = new Map<string, ApiCategory>();
         [...a1, ...a2].forEach((c) => {
           if (!c?.slug) return;
@@ -164,11 +156,7 @@ export default function Products() {
           .filter((c) => {
             if (c.status && c.status !== "active") return false;
             if (typeof c.showOnWebsite === "boolean" && !c.showOnWebsite) return false;
-
-            // ✅ keep this only if you *really* set showInNavbar on admin
-            // if it hides everything, comment it out
             if (typeof c.showInNavbar === "boolean" && !c.showInNavbar) return false;
-
             const seg = norm(c.segment);
             if (seg !== "all" && seg !== "midrange") return false;
             return true;
@@ -208,7 +196,6 @@ export default function Products() {
       );
   }, [cats, selectedParentObj]);
 
-  // ✅ fetch products with server-side category/subcategory
   useEffect(() => {
     let alive = true;
 
@@ -254,10 +241,8 @@ export default function Products() {
     };
   }, [selectedCategory, selectedSubcategory]);
 
-  // ✅ Map to UI product type
   const products = useMemo(() => rawProducts.map(mapDbToUI), [rawProducts]);
 
-  // ✅ Filters lists from loaded products
   const materials = useMemo(() => {
     const set = new Set(products.map((p) => p.material).filter(Boolean) as string[]);
     return Array.from(set).sort();
@@ -268,7 +253,6 @@ export default function Products() {
     return Array.from(set).sort();
   }, [products]);
 
-  // ✅ client-side filters (search/material/color)
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -286,8 +270,6 @@ export default function Products() {
     searchTerm,
   ].filter(Boolean).length;
 
-  // ✅ Keep query params in sync (for /products route).
-  // If you're on /categories/:slug route, you can still use query params for "sub".
   const syncUrl = (cat: string, sub: string) => {
     const next = new URLSearchParams(searchParams);
     if (cat) next.set("cat", cat);
@@ -382,7 +364,7 @@ export default function Products() {
                     placeholder="Search products..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb]"
+                    className="pl-10 bg-[#3f4f22] border-[#5e7740] text-[#f7faef] placeholder:text-[#d5dfbb]"
                   />
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#d6dfbd]" />
                 </div>
@@ -395,7 +377,7 @@ export default function Products() {
                   <select
                     value={selectedCategory}
                     onChange={(e) => handleCategoryChange(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
+                    className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
                   >
                     <option value="">{catLoading ? "Loading..." : "All Categories"}</option>
                     {parentCats.map((cat) => (
@@ -415,7 +397,7 @@ export default function Products() {
                     value={selectedSubcategory}
                     onChange={(e) => handleSubcategoryChange(e.target.value)}
                     disabled={!selectedCategory || subCatsOfSelected.length === 0}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-[#f7faef] focus:border-[#eef4df] focus:outline-none disabled:opacity-60"
+                    className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none disabled:opacity-60"
                   >
                     <option value="">
                       {!selectedCategory
@@ -440,7 +422,7 @@ export default function Products() {
                   <select
                     value={selectedMaterial}
                     onChange={(e) => setSelectedMaterial(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
+                    className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
                   >
                     <option value="">All Materials</option>
                     {materials.map((mat) => (
@@ -459,7 +441,7 @@ export default function Products() {
                   <select
                     value={selectedColor}
                     onChange={(e) => setSelectedColor(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
+                    className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
                   >
                     <option value="">All Colors</option>
                     {colors.map((c) => (
@@ -526,7 +508,7 @@ export default function Products() {
                         placeholder="Search products..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb]"
+                        className="pl-10 bg-[#3f4f22] border-[#5e7740] text-[#f7faef] placeholder:text-[#d5dfbb]"
                       />
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#d6dfbd]" />
                     </div>
@@ -538,7 +520,7 @@ export default function Products() {
                       <select
                         value={selectedCategory}
                         onChange={(e) => handleCategoryChange(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-[#f7faef]"
+                        className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
                       >
                         <option value="">{catLoading ? "Loading..." : "All Categories"}</option>
                         {parentCats.map((cat) => (
@@ -557,7 +539,7 @@ export default function Products() {
                         value={selectedSubcategory}
                         onChange={(e) => handleSubcategoryChange(e.target.value)}
                         disabled={!selectedCategory || subCatsOfSelected.length === 0}
-                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-[#f7faef] disabled:opacity-60"
+                        className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none disabled:opacity-60"
                       >
                         <option value="">
                           {!selectedCategory
@@ -581,7 +563,7 @@ export default function Products() {
                       <select
                         value={selectedMaterial}
                         onChange={(e) => setSelectedMaterial(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-[#f7faef]"
+                        className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
                       >
                         <option value="">All Materials</option>
                         {materials.map((mat) => (
@@ -599,7 +581,7 @@ export default function Products() {
                       <select
                         value={selectedColor}
                         onChange={(e) => setSelectedColor(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-[#f7faef]"
+                        className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
                       >
                         <option value="">All Colors</option>
                         {colors.map((c) => (

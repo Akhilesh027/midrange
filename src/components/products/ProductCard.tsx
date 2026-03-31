@@ -40,12 +40,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           <img
             src={product.image}
             alt={product.name}
-            className="w-full h-full object-cover transition-opacity duration-500 group-hover:opacity-0"
-          />
-          <img
-            src={product.hoverImage}
-            alt={product.name}
-            className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+            className="w-full h-full object-cover transition-opacity duration-500"
           />
           
           {/* Discount badge */}

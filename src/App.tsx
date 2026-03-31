@@ -20,6 +20,8 @@ import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
 
 import { MidrangeAuthProvider } from "./context/MidrangeAuthContext";
+import { WishlistProvider } from "./context/WishlistContext";
+import Wishlist from "./pages/Wishlist";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +40,7 @@ const ScrollToTop = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <WishlistProvider>
     <MidrangeAuthProvider>
       <CartProvider>
         <TooltipProvider>
@@ -71,7 +74,7 @@ const App = () => (
               <Route path="/orders" element={<Orders />} />
 
               <Route path="/order-success/:orderId" element={<OrderSuccess />} />
-
+              <Route path="/wishlist" element={<Wishlist />} />
               {/* Catch all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
@@ -81,6 +84,7 @@ const App = () => (
         </TooltipProvider>
       </CartProvider>
     </MidrangeAuthProvider>
+    </WishlistProvider>
   </QueryClientProvider>
 );
 

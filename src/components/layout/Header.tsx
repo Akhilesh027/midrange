@@ -12,6 +12,7 @@ import {
   Crown,
   Star,
   Loader2,
+  Heart,
 } from "lucide-react";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useCart } from "@/context/CartContext";
@@ -260,7 +261,7 @@ export const Header = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16 md:h-20">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center shadow-md overflow-hidden border border-white/10 bg-white/5">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center shadow-md overflow-hidden border border-white/10 bg-[#4d602c]">
               <img src={logo} alt="JS GALLOR Logo" className="w-full h-full object-contain" />
             </div>
             <div className="hidden sm:block">
@@ -313,6 +314,10 @@ export const Header = () => {
       Celestia Living
     </a>
   </div>
+  <Link to="/wishlist" className="relative text-[#d6dfbd] hover:text-[#eef4df] transition-colors">
+  <Heart className="h-5 w-5" />
+ 
+</Link>
             {/* ✅ Location button with live detection */}
             <button
               onClick={getUserLocation}
@@ -425,6 +430,7 @@ export const Header = () => {
                             </span>
                           )}
                         </button>
+                        
 {/* ✅ NEW BUTTONS - Mobile */}
 <div className="flex flex-col gap-2 mb-4">
   <a

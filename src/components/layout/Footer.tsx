@@ -125,10 +125,15 @@ export const Footer = () => {
       {/* Copyright */}
       <div className="border-t border-white/10">
         <div className="container mx-auto px-4 py-4">
-          <p className="text-center text-[#bfae87] text-sm">
-            © 2026 JSGALLOR || All rights reserved
-          </p>
-        </div>
+  <div className="text-center">
+    <p className="text-[#bfae87] text-sm">
+      © 2026 JSGALLOR || All rights reserved
+    </p>
+    <p className="text-[#bfae87] text-xs mt-1 opacity-80">
+      Designed and Developed by <span className="font-medium">Digitalness</span>
+    </p>
+  </div>
+</div>
       </div>
     </footer>
   );

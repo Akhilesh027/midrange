@@ -5,6 +5,7 @@ import { Layout } from "@/components/layout/Layout";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Button } from "@/components/ui/button";
 import { ProductSlider } from "@/components/layout/ProductSlider"; // adjust path as needed
+import IdeasSection from "./ideasection";
 
 // ✅ APIs
 const API_PRODUCTS = "https://api.jsgallor.com/api/midrange/products";
@@ -330,7 +331,7 @@ export default function Index() {
             </div>
           </div>
         </section>
-
+<IdeasSection/>
         {/* Featured Products */}
         <section className="py-16 md:py-24 bg-[#556b2f]">
           <div className="container mx-auto px-4">

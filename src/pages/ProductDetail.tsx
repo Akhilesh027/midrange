@@ -11,10 +11,12 @@ import {
   Shield,
   RotateCcw,
   Check,
+  Loader2,
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { useCart, CartProduct } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { toast } from "@/hooks/use-toast";
 
 const API_BASE = "https://api.jsgallor.com/api";
@@ -41,7 +43,7 @@ type ProductDB = {
   shortDescription?: string;
 
   price: number;
-  discount?: number;                    // NEW: discount percentage (0‑100)
+  discount?: number;                    // discount percentage (0‑100)
   quantity: number;
   availability: "In Stock" | "Low Stock" | "Out of Stock";
 
@@ -188,6 +190,7 @@ const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { addToWishlist, removeFromWishlist, isInWishlist, loading: wishlistLoading } = useWishlist();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +202,8 @@ const ProductDetail = () => {
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedFabric, setSelectedFabric] = useState<string | null>(null);
+
+  const [isTogglingWishlist, setIsTogglingWishlist] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -273,13 +278,11 @@ const ProductDetail = () => {
     return match || null;
   }, [uiProduct, selectedColor, selectedSize, selectedFabric]);
 
-  // Determine original price (variant or product)
   const originalPrice = useMemo(() => {
     if (selectedVariant) return selectedVariant.price;
     return uiProduct?.price || 0;
   }, [uiProduct, selectedVariant]);
 
-  // Apply discount (product‑level) to the original price
   const discountPercent = uiProduct?.discountPercent ?? 0;
   const finalPrice = useMemo(() => {
     const { finalPrice: fp } = computeDiscount(originalPrice, discountPercent);
@@ -338,6 +341,30 @@ const ProductDetail = () => {
   const requireSize = availableSizes.length > 1;
   const requireFabric = availableFabrics.length > 1;
 
+  // Wishlist handlers
+  const isWishlisted = uiProduct ? isInWishlist(uiProduct._id) : false;
+  const isWishlistLoading = wishlistLoading || isTogglingWishlist;
+
+  const handleWishlistToggle = async () => {
+    if (!uiProduct) return;
+    setIsTogglingWishlist(true);
+    try {
+      if (isWishlisted) {
+        await removeFromWishlist(uiProduct._id);
+        toast({ title: "Removed from wishlist", description: `${uiProduct.name} removed.` });
+      } else {
+        // Pass the product object; ensure it matches the Product type expected by the context
+        await addToWishlist(uiProduct as any);
+        toast({ title: "Added to wishlist", description: `${uiProduct.name} added to wishlist.` });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to update wishlist. Please try again." });
+    } finally {
+      setIsTogglingWishlist(false);
+    }
+  };
+
+  // Validation and cart functions
   const validateSelections = () => {
     if (uiProduct?.hasVariants) {
       if (requireColor && !selectedColor) {
@@ -769,9 +796,19 @@ const ProductDetail = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-12 w-12 border border-white/10 hover:bg-white/10 text-[#d6dfbd] hover:text-[#f4f7ec]"
+                      className="h-12 w-12 border border-white/10 hover:bg-white/10 text-[#d6dfbd] hover:text-[#f4f7ec] relative"
+                      onClick={handleWishlistToggle}
+                      disabled={isWishlistLoading}
                     >
-                      <Heart className="w-5 h-5" />
+                      {isWishlistLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Heart
+                          className={`w-5 h-5 transition-all ${
+                            isWishlisted ? "fill-[#eef4df] text-[#eef4df]" : ""
+                          }`}
+                        />
+                      )}
                     </Button>
                   </div>
                 </div>
