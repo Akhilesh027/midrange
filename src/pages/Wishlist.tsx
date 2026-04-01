@@ -3,7 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { useWishlist } from "@/context/WishlistContext";
-import { Heart, Trash2, ShoppingBag, Loader2 } from "lucide-react";
+import { useCart } from "@/context/CartContext";
+import { Heart, Trash2, ShoppingBag, Loader2, ShoppingCart } from "lucide-react";
+import { toast } from "sonner";
+
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -12,9 +15,12 @@ const formatPrice = (price: number) => {
     maximumFractionDigits: 0,
   }).format(price);
 };
+
 const Wishlist = () => {
   const { wishlist, loading, error, removeFromWishlist } = useWishlist();
+  const { addToCart } = useCart();
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   const handleRemove = async (productId: string) => {
     setRemovingId(productId);
@@ -24,6 +30,43 @@ const Wishlist = () => {
       console.error("Failed to remove from wishlist", err);
     } finally {
       setRemovingId(null);
+    }
+  };
+
+  const handleAddToCart = async (product: any) => {
+    const productId = product._id;
+    setAddingId(productId);
+    try {
+      // Compute final price with discount
+      const discountPercent = product.discount || 0;
+      const originalPrice = product.price;
+      const discountAmount = (originalPrice * discountPercent) / 100;
+      const finalPrice = originalPrice - discountAmount;
+
+      const cartProduct = {
+        id: product._id,
+        name: product.name,
+        category: product.category || "",
+        price: originalPrice,
+        finalPrice,
+        discountPercent,
+        discountAmount,
+        image: product.image,
+        galleryImages: product.images || [],
+        material: product.material || "",
+        color: undefined,
+        size: undefined,
+        availability: product.inStock ? "In Stock" : "Out of Stock",
+        stockQty: product.quantity || 0,
+        description: product.description || "",
+      };
+
+      await addToCart(cartProduct, 1, null, {}); // quantity 1, no variant
+      toast.success(`${product.name} added to cart!`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add to cart");
+    } finally {
+      setAddingId(null);
     }
   };
 
@@ -96,6 +139,7 @@ const Wishlist = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {wishlist.map((product) => {
               const isRemoving = removingId === product._id;
+              const isAdding = addingId === product._id;
               const finalPrice = product.discount
                 ? product.price * (1 - product.discount / 100)
                 : product.price;
@@ -136,14 +180,28 @@ const Wishlist = () => {
                       )}
                     </div>
 
-                    {/* Remove Button */}
-                    <div className="mt-4">
+                    {/* Buttons */}
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAddToCart(product)}
+                        disabled={isAdding || !product.quantity}
+                        className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                      >
+                        {isAdding ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <ShoppingCart className="h-4 w-4 mr-2" />
+                        )}
+                        Add to Cart
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleRemove(product._id)}
                         disabled={isRemoving}
-                        className="w-full border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                        className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
                       >
                         {isRemoving ? (
                           <Loader2 className="h-4 w-4 animate-spin mr-2" />

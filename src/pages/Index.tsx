@@ -6,6 +6,8 @@ import { ProductCard } from "@/components/products/ProductCard";
 import { Button } from "@/components/ui/button";
 import { ProductSlider } from "@/components/layout/ProductSlider"; // adjust path as needed
 import IdeasSection from "./ideasection";
+import { useMidrangeAuth } from "@/context/MidrangeAuthContext";
+import { PhoneNumberModal } from "@/components/layout/PhoneNumberModal";
 
 // ✅ APIs
 const API_PRODUCTS = "https://api.jsgallor.com/api/midrange/products";
@@ -108,10 +110,19 @@ const FALLBACK_CAT_IMAGES: Record<string, string> = {
 };
 
 export default function Index() {
+  const { user, isAuthenticated } = useMidrangeAuth();
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [featured, setFeatured] = useState<CartProduct[]>([]);
   const [cats, setCats] = useState<ApiCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
+
+  // Show phone modal when authenticated, no phone, and not skipped
+  useEffect(() => {
+    if (isAuthenticated && user && !user.phone && !sessionStorage.getItem("skipPhoneModalMid")) {
+      setShowPhoneModal(true);
+    }
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     let alive = true;
@@ -331,7 +342,9 @@ export default function Index() {
             </div>
           </div>
         </section>
-<IdeasSection/>
+
+        <IdeasSection />
+
         {/* Featured Products */}
         <section className="py-16 md:py-24 bg-[#556b2f]">
           <div className="container mx-auto px-4">
@@ -469,6 +482,9 @@ export default function Index() {
           </div>
         </section>
       </div>
+
+      {/* Phone Number Modal */}
+      <PhoneNumberModal open={showPhoneModal} onOpenChange={setShowPhoneModal} />
     </Layout>
   );
 }

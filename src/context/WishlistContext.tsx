@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
+// ✅ Use the same base and path as your product API
 const API_BASE = import.meta.env.VITE_API_BASE || "https://api.jsgallor.com";
-const TIER = "midrange";   // matches route: /api/midrange/wishlist
+const WISHLIST_API = `${API_BASE}/api/midrange/wishlist`;   // matches backend routes
 
-// Define Product type locally
 export interface Product {
   _id: string;
   id?: string;
@@ -40,22 +40,13 @@ interface WishlistContextType {
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
-// Helper to get token for the current tier (e.g., "midrange_token")
-const getToken = () => {
-  return localStorage.getItem(`${TIER}_token`);
-};
-
-// Helper to get user ID from stored user object
-const getUserId = () => {
-  const userRaw = localStorage.getItem(`${TIER}_user`);
-  const user = userRaw ? JSON.parse(userRaw) : null;
-  return user?._id || user?.id || null;
-};
+const getToken = () => localStorage.getItem("midrange_token");
 
 // Authenticated fetch wrapper
 const authFetch = async (url: string, options: RequestInit = {}) => {
   const token = getToken();
   if (!token) throw new Error("Not authenticated");
+
   const res = await fetch(url, {
     ...options,
     headers: {
@@ -64,9 +55,10 @@ const authFetch = async (url: string, options: RequestInit = {}) => {
       ...options.headers,
     },
   });
+
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || "Request failed");
+    throw new Error(errorData.message || `Request failed with status ${res.status}`);
   }
   return res.json();
 };
@@ -77,7 +69,7 @@ export const WishlistProvider = ({ children }: { children: React.ReactNode }) =>
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(getToken());
 
-  // Watch for token changes (e.g., login/logout across tabs)
+  // Watch token changes (login/logout)
   useEffect(() => {
     const handleStorage = () => setToken(getToken());
     window.addEventListener("storage", handleStorage);
@@ -93,8 +85,8 @@ export const WishlistProvider = ({ children }: { children: React.ReactNode }) =>
     setLoading(true);
     setError(null);
     try {
-      const data = await authFetch(`${API_BASE}/api/${TIER}/wishlist`);
-      setWishlist(data);
+      const data = await authFetch(WISHLIST_API);
+      setWishlist(Array.isArray(data) ? data : []);
     } catch (err: any) {
       setError(err.message);
       console.error("Failed to fetch wishlist:", err);
@@ -109,13 +101,14 @@ export const WishlistProvider = ({ children }: { children: React.ReactNode }) =>
 
   // Add product to wishlist
   const addToWishlist = useCallback(async (product: Product) => {
-    if (!token) {
-      console.warn("Cannot add to wishlist: not authenticated");
-      return;
-    }
+    if (!token) throw new Error("Not authenticated");
+
     setError(null);
+    const productId = product._id || product.id;
+    if (!productId) throw new Error("Product ID missing");
+
     try {
-      const updatedWishlist = await authFetch(`${API_BASE}/api/${TIER}/wishlist/${product._id}`, {
+      const updatedWishlist = await authFetch(`${WISHLIST_API}/${productId}`, {
         method: "POST",
       });
       setWishlist(updatedWishlist);
@@ -128,13 +121,11 @@ export const WishlistProvider = ({ children }: { children: React.ReactNode }) =>
 
   // Remove product from wishlist
   const removeFromWishlist = useCallback(async (productId: string) => {
-    if (!token) {
-      console.warn("Cannot remove from wishlist: not authenticated");
-      return;
-    }
+    if (!token) throw new Error("Not authenticated");
+
     setError(null);
     try {
-      const updatedWishlist = await authFetch(`${API_BASE}/api/${TIER}/wishlist/${productId}`, {
+      const updatedWishlist = await authFetch(`${WISHLIST_API}/${productId}`, {
         method: "DELETE",
       });
       setWishlist(updatedWishlist);
@@ -153,7 +144,7 @@ export const WishlistProvider = ({ children }: { children: React.ReactNode }) =>
     setWishlist([]);
   }, []);
 
-  // Fetch when token changes (user logs in/out)
+  // Fetch when token changes
   useEffect(() => {
     fetchWishlist();
   }, [fetchWishlist]);
