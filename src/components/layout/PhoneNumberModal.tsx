@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Phone } from "lucide-react";
 import { useMidrangeAuth } from "@/context/MidrangeAuthContext";
@@ -36,7 +29,7 @@ export const PhoneNumberModal = ({ open, onOpenChange }: PhoneNumberModalProps) 
       const success = await updateProfile({ phone });
       if (success) {
         toast.success("Phone number added successfully!");
-        onOpenChange(false);
+        onOpenChange(false); // close modal only after successful save
       } else {
         toast.error("Failed to update phone number");
       }
@@ -47,22 +40,15 @@ export const PhoneNumberModal = ({ open, onOpenChange }: PhoneNumberModalProps) 
     }
   };
 
-  const handleSkip = () => {
-    sessionStorage.setItem("skipPhoneModalMid", "true");
-    onOpenChange(false);
-  };
-
-  if (!user) return null;
+  if (!user || !open) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-[#556b2f] border-white/20 text-[#f4f7ec]">
-        <DialogHeader>
-          <DialogTitle className="text-[#f7faef]">Complete Your Profile</DialogTitle>
-          <DialogDescription className="text-[#d6dfbd]">
-            Please add your phone number to help us serve you better.
-          </DialogDescription>
-        </DialogHeader>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-[#556b2f] border border-white/20 rounded-lg shadow-lg w-full max-w-md p-6">
+        <h2 className="text-xl font-semibold text-[#f7faef] mb-2">Complete Your Profile</h2>
+        <p className="text-sm text-[#d6dfbd] mb-6">
+          Please add your phone number to continue. This helps us serve you better.
+        </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -83,26 +69,17 @@ export const PhoneNumberModal = ({ open, onOpenChange }: PhoneNumberModalProps) 
             <p className="text-xs text-[#d6dfbd]">We'll never share your phone number.</p>
           </div>
 
-          <div className="flex gap-3 justify-end">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleSkip}
-              disabled={loading}
-              className="text-[#d6dfbd] hover:text-[#f3f7e6] hover:bg-white/10"
-            >
-              Skip for now
-            </Button>
+          <div className="flex justify-end">
             <Button
               type="submit"
               disabled={loading}
-              className="bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]"
+              className="bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2] w-full sm:w-auto"
             >
               {loading ? "Saving..." : "Save"}
             </Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 };
