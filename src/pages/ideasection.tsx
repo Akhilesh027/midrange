@@ -216,15 +216,7 @@ const IdeasSection = () => {
           ))}
         </div>
 
-        <div className="text-center mt-12">
-          <Button
-            variant="outline"
-            size="lg"
-            className="border-2 border-white text-white bg-transparent hover:bg-white hover:text-[#2c3e1c] transition-all duration-300"
-          >
-            More Ideas
-          </Button>
-        </div>
+        
       </div>
     </section>
   );

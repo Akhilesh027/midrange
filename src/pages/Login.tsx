@@ -13,7 +13,9 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-
+const [showForgotModal, setShowForgotModal] = useState(false);
+const [resetEmail, setResetEmail] = useState("");
+const [resetLoading, setResetLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -65,7 +67,39 @@ const Login = () => {
       setIsLoading(false);
     }
   };
+const handleForgotPassword = async () => {
+  if (!resetEmail) {
+    toast.error("Please enter your email");
+    return;
+  }
 
+  setResetLoading(true);
+
+  try {
+    const res = await fetch("https://api.jsgallor.com/api/midrange/forgot", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email: resetEmail }),
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      toast.success(data.message || "Reset link sent");
+      setShowForgotModal(false);
+      setResetEmail("");
+    } else {
+      toast.error(data.message || "Failed to send link");
+    }
+
+  } catch {
+    toast.error("Server error");
+  } finally {
+    setResetLoading(false);
+  }
+};
   const handleGoogleSuccess = async (credential?: string) => {
     if (!credential) {
       toast.error("Google sign-in failed (no credential).");
@@ -197,14 +231,54 @@ const Login = () => {
                   />
                   <span className="text-[#d6dfbd]">Remember me</span>
                 </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-[#eef4df] hover:text-[#f4f7ec] hover:underline"
-                >
-                  Forgot password?
-                </Link>
+               <button
+  type="button"
+  onClick={() => setShowForgotModal(true)}
+  className="text-[#eef4df] hover:text-[#f4f7ec] hover:underline"
+>
+  Forgot password?
+</button>
               </div>
+{showForgotModal && (
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-6 w-[350px] shadow-xl">
 
+      <h3 className="text-xl font-semibold mb-2 text-[#f4f7ec]">
+        Reset Password
+      </h3>
+
+      <p className="text-sm text-[#d6dfbd] mb-4">
+        Enter your email to receive a reset link
+      </p>
+
+      <Input
+        type="email"
+        placeholder="Enter your email"
+        value={resetEmail}
+        onChange={(e) => setResetEmail(e.target.value)}
+        className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb] h-12 mb-4"
+        disabled={resetLoading}
+      />
+
+      <Button
+        onClick={handleForgotPassword}
+        className="w-full bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]"
+        disabled={resetLoading}
+      >
+        {resetLoading ? "Sending..." : "Send Reset Link"}
+      </Button>
+
+      <button
+        onClick={() => setShowForgotModal(false)}
+        className="w-full mt-3 text-sm text-[#d6dfbd] hover:underline"
+        disabled={resetLoading}
+      >
+        Cancel
+      </button>
+
+    </div>
+  </div>
+)}
               <Button
                 type="submit"
                 size="lg"

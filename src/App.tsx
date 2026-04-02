@@ -22,6 +22,7 @@ import OrderSuccess from "./pages/OrderSuccess";
 import { MidrangeAuthProvider } from "./context/MidrangeAuthContext";
 import { WishlistProvider } from "./context/WishlistContext";
 import Wishlist from "./pages/Wishlist";
+import ResetPassword from "./pages/Forgotpassword";
 
 const queryClient = new QueryClient();
 
@@ -61,7 +62,7 @@ const App = () => (
               <Route path="/categories" element={<Products />} />
               <Route path="/categories/:categorySlug" element={<Products />} />
               <Route path="/categories/:categorySlug/:subSlug" element={<Products />} />
-
+<Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/product/:id" element={<ProductDetail />} />
 
               <Route path="/cart" element={<Cart />} />
