@@ -4,7 +4,7 @@ import { ArrowRight, Truck, Shield, Headphones, RefreshCcw } from "lucide-react"
 import { Layout } from "@/components/layout/Layout";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Button } from "@/components/ui/button";
-import { ProductSlider } from "@/components/layout/ProductSlider"; // adjust path as needed
+import { ProductSlider } from "@/components/layout/ProductSlider";
 import IdeasSection from "./ideasection";
 import { useMidrangeAuth } from "@/context/MidrangeAuthContext";
 import { PhoneNumberModal } from "@/components/layout/PhoneNumberModal";
@@ -483,7 +483,13 @@ export default function Index() {
         </section>
       </div>
 
-      {/* Phone Number Modal */}
+      {/* 
+        ✅ Z-INDEX FIX: Ensure PhoneNumberModal appears above header (z-50).
+        If your PhoneNumberModal component does NOT already use a higher z-index,
+        update its root container to use e.g. "z-[100]" or "z-50" if header uses lower.
+        Example inside PhoneNumberModal.tsx:
+          <div className="fixed inset-0 z-[100] flex items-center justify-center ...">
+      */}
       <PhoneNumberModal open={showPhoneModal} onOpenChange={setShowPhoneModal} />
     </Layout>
   );

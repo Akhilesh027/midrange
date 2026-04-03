@@ -75,7 +75,6 @@ export const Header = () => {
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          // Use a free reverse geocoding API (BigDataCloud)
           const res = await fetch(
             `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
           );
@@ -295,29 +294,28 @@ export const Header = () => {
               <Search className="w-5 h-5" />
             </button>
 
-  <div className="hidden md:flex items-center gap-2">
-    <a
-      href="https://essentialstudio.jsgallor.com"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="px-3 py-1.5 text-xs font-medium rounded-full border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
-    >
-      Essentials Studio
-    </a>
+            <div className="hidden md:flex items-center gap-2">
+              <a
+                href="https://essentialstudio.jsgallor.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 text-xs font-medium rounded-full border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
+              >
+                Essentials Studio
+              </a>
 
-    <a
-      href="https://celestialiving.jsgallor.com"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="px-3 py-1.5 text-xs font-medium rounded-full border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
-    >
-      Celestia Living
-    </a>
-  </div>
-  <Link to="/wishlist" className="relative text-[#d6dfbd] hover:text-[#eef4df] transition-colors">
-  <Heart className="h-5 w-5" />
- 
-</Link>
+              <a
+                href="https://celestialiving.jsgallor.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 text-xs font-medium rounded-full border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
+              >
+                Celestia Living
+              </a>
+            </div>
+            <Link to="/wishlist" className="relative text-[#d6dfbd] hover:text-[#eef4df] transition-colors">
+              <Heart className="h-5 w-5" />
+            </Link>
             {/* ✅ Location button with live detection */}
             <button
               onClick={getUserLocation}
@@ -431,26 +429,26 @@ export const Header = () => {
                           )}
                         </button>
                         
-{/* ✅ NEW BUTTONS - Mobile */}
-<div className="flex flex-col gap-2 mb-4">
-  <a
-    href="https://essentialstudio.jsgallor.com"
-    target="_blank"
-    rel="noopener noreferrer"
-    className="w-full text-center px-4 py-2 text-sm rounded-lg border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
-  >
-    Essentials Studio
-  </a>
+                        {/* ✅ NEW BUTTONS - Mobile */}
+                        <div className="flex flex-col gap-2 mb-4">
+                          <a
+                            href="https://essentialstudio.jsgallor.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full text-center px-4 py-2 text-sm rounded-lg border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
+                          >
+                            Essentials Studio
+                          </a>
 
-  <a
-    href="https://celestialiving.jsgallor.com"
-    target="_blank"
-    rel="noopener noreferrer"
-    className="w-full text-center px-4 py-2 text-sm rounded-lg border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
-  >
-    Celestia Living
-  </a>
-</div>
+                          <a
+                            href="https://celestialiving.jsgallor.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full text-center px-4 py-2 text-sm rounded-lg border border-white/20 text-[#f7ecd7] hover:bg-white/10 transition-colors"
+                          >
+                            Celestia Living
+                          </a>
+                        </div>
                         <Link
                           to="/orders"
                           onClick={() => setIsUserMenuOpen(false)}
@@ -537,6 +535,191 @@ export const Header = () => {
           </div>
         )}
       </div>
+
+      {/* ✅ FULL SCREEN MOBILE MENU with solid background */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Dark backdrop with blur */}
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          {/* Menu content - full viewport height with SOLID BACKGROUND */}
+          <div className="relative w-full min-h-[100dvh] bg-[#4b5e29] overflow-y-auto">
+            <div className="container mx-auto px-4 py-6 min-h-[100dvh] flex flex-col">
+              {/* Close button at top right */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Menu items - centered and spaced */}
+              <div className="flex-1 flex flex-col justify-center space-y-8 py-8">
+                {/* Categories */}
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[#cdbf9e] mb-4 text-center">
+                    Categories
+                  </h3>
+                  {catLoading ? (
+                    <div className="text-sm text-[#cdbf9e] text-center">Loading...</div>
+                  ) : parents.length === 0 ? (
+                    <div className="text-sm text-[#cdbf9e] text-center">No categories</div>
+                  ) : (
+                    <ul className="space-y-3 text-center">
+                      {parents.map((parent) => {
+                        const children = childrenByParent.get(String(parent.id)) || [];
+                        return (
+                          <li key={parent.id}>
+                            <Link
+                              to={parentHref(parent.slug)}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                              className="block py-2 text-lg font-medium text-[#f7ecd7] hover:text-[#ffe8b3] transition-colors"
+                            >
+                              {parent.name}
+                            </Link>
+                            {children.length > 0 && (
+                              <ul className="mt-2 space-y-1">
+                                {children.map((child) => (
+                                  <li key={child.id}>
+                                    <Link
+                                      to={childHref(parent.slug, child.slug)}
+                                      onClick={() => setIsMobileMenuOpen(false)}
+                                      className="block py-1 text-sm text-[#cdbf9e] hover:text-[#ffe8b3]"
+                                    >
+                                      {child.name}
+                                    </Link>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Collections */}
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[#cdbf9e] mb-4 text-center">
+                    Collections
+                  </h3>
+                  <div className="space-y-2 text-center">
+                    <a
+                      href="https://essentialstudio.jsgallor.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-[#f7ecd7] hover:text-[#ffe8b3] text-lg"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Essentials Studio
+                    </a>
+                    <a
+                      href="https://celestialiving.jsgallor.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-[#f7ecd7] hover:text-[#ffe8b3] text-lg"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Celestia Living
+                    </a>
+                  </div>
+                </div>
+
+                {/* Account */}
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-[#cdbf9e] mb-4 text-center">
+                    Account
+                  </h3>
+                  {isAuthenticated ? (
+                    <div className="space-y-2 text-center">
+                      <button
+                        onClick={() => {
+                          navigate("/profile");
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="block w-full text-center text-[#f7ecd7] hover:text-[#ffe8b3] text-lg"
+                      >
+                        My Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate("/orders");
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="block w-full text-center text-[#f7ecd7] hover:text-[#ffe8b3] text-lg"
+                      >
+                        My Orders
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="block w-full text-center text-[#ffb4b4] hover:text-red-300 text-lg"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 text-center">
+                      <button
+                        onClick={() => {
+                          navigate("/login");
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="block w-full text-center text-[#f7ecd7] hover:text-[#ffe8b3] text-lg"
+                      >
+                        Sign In
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate("/signup");
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="block w-full text-center text-[#f7ecd7] hover:text-[#ffe8b3] text-lg"
+                      >
+                        Create Account
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Location */}
+                <div className="text-center">
+                  <button
+                    onClick={() => {
+                      getUserLocation();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    disabled={location.loading}
+                    className="flex items-center justify-center gap-2 text-sm text-[#cdbf9e] hover:text-[#ffe8b3] disabled:opacity-50 mx-auto"
+                  >
+                    {location.loading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <MapPin className="w-4 h-4" />
+                    )}
+                    <span>
+                      {location.loading
+                        ? "Detecting..."
+                        : location.city
+                        ? location.city
+                        : location.error
+                        ? "Location off"
+                        : "Detect location"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <nav className="hidden md:block border-t border-white/10 bg-[#4b5e29]/90 backdrop-blur-sm">
         <div className="container mx-auto px-4">
