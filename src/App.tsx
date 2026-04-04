@@ -23,6 +23,7 @@ import { MidrangeAuthProvider } from "./context/MidrangeAuthContext";
 import { WishlistProvider } from "./context/WishlistContext";
 import Wishlist from "./pages/Wishlist";
 import ResetPassword from "./pages/Forgotpassword";
+import SearchPage from "./pages/SearchPage";
 
 const queryClient = new QueryClient();
 
@@ -86,6 +87,8 @@ const App = () => (
                   path="/categories/:categorySlug"
                   element={<Products />}
                 />
+                <Route path="/search" element={<SearchPage />} />
+
                 <Route
                   path="/categories/:categorySlug/:subSlug"
                   element={<Products />}

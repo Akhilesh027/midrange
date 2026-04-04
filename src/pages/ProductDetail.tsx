@@ -41,28 +41,23 @@ type ProductDB = {
   category: string;
   description?: string;
   shortDescription?: string;
-
   price: number;
-  discount?: number;                    // discount percentage (0‑100)
+  discount?: number;
+  gst?: number;                 // ✅ ADDED
+  isCustomized?: boolean;       // ✅ ADDED
   quantity: number;
   availability: "In Stock" | "Low Stock" | "Out of Stock";
-
   status: "pending" | "approved" | "rejected";
   tier: "affordable" | "mid_range" | "luxury";
-
   image: string;
   galleryImages?: string[];
-
   material?: string;
-
   color?: string | string[];
   size?: string | string[];
-
   fabricTypes?: string[];
   extraPillows?: number;
   hasVariants?: boolean;
   variants?: ApiVariant[];
-
   deliveryTime?: string;
 };
 
@@ -72,19 +67,17 @@ type UiProduct = {
   name: string;
   category: string;
   description: string;
-  price: number;                // original price
-  discountPercent: number;      // from backend (or default 0)
-  finalPrice: number;           // computed after discount
-  discountAmount: number;
+  basePrice: number;           // original product price (without discount)
+  discountPercent: number;
+  gst: number;                 // ✅ ADDED
+  isCustomized: boolean;       // ✅ ADDED
   image: string;
   images: string[];
-  inStock: boolean;
   colors: string[];
   sizes: string[];
   fabrics: string[];
-  quantity: number;
+  totalStock: number;
   material: string;
-  weight?: string;
   extraPillows?: number;
   hasVariants: boolean;
   variants?: ApiVariant[];
@@ -100,10 +93,27 @@ function formatINR(price: number) {
   }).format(price);
 }
 
-function computeDiscount(price: number, percent: number) {
-  const discountAmount = Math.round((Number(price || 0) * percent) / 100);
-  const finalPrice = Number(price || 0) - discountAmount;
-  return { discountAmount, finalPrice };
+/**
+ * Correct discount logic:
+ * - Discount applies only to the base product price.
+ * - Variant price = basePrice + adjustment (could be positive or negative).
+ * - Final price = discountedBasePrice + (variantPrice - basePrice)
+ */
+function computeFinalPrice(
+  basePrice: number,
+  discountPercent: number,
+  variantPrice?: number
+): { originalPrice: number; finalPrice: number; discountAmount: number } {
+  const safeBase = Number(basePrice) || 0;
+  const safeDiscount = Number(discountPercent) || 0;
+  const discountedBase = safeBase * (1 - safeDiscount / 100);
+  const original = variantPrice !== undefined ? Number(variantPrice) : safeBase;
+  const final =
+    variantPrice !== undefined
+      ? discountedBase + (Number(variantPrice) - safeBase)
+      : discountedBase;
+  const discountAmount = original - final;
+  return { originalPrice: original, finalPrice: final, discountAmount };
 }
 
 function getToken() {
@@ -154,30 +164,22 @@ function mapDbToUiProduct(p: ProductDB): UiProduct {
     totalQty = Number(p.quantity ?? 0);
   }
 
-  const availability = String(p.availability || "").toLowerCase();
-  const inStock = totalQty > 0 && (availability.includes("in stock") || availability === "");
-
-  const originalPrice = Number(p.price || 0);
-  const discountPercent = p.discount ?? 0;   // use backend discount, default 0
-  const { discountAmount, finalPrice } = computeDiscount(originalPrice, discountPercent);
-
   return {
     id: p._id,
     _id: p._id,
     name: p.name,
     category: p.category,
     description: p.description || p.shortDescription || "",
-    price: originalPrice,
-    discountPercent,
-    finalPrice,
-    discountAmount,
+    basePrice: Number(p.price) || 0,
+    discountPercent: Number(p.discount) || 0,
+    gst: Number(p.gst) || 0,               // ✅ ADDED
+    isCustomized: p.isCustomized || false, // ✅ ADDED
     image: p.image,
     images,
-    inStock,
     colors,
     sizes,
     fabrics,
-    quantity: totalQty,
+    totalStock: totalQty,
     material: p.material || "—",
     extraPillows: p.extraPillows,
     hasVariants,
@@ -233,18 +235,18 @@ const ProductDetail = () => {
 
         if (alive) {
           setProductDb(p);
-          const ui = mapDbToUiProduct(p);
           setSelectedImage(p.image);
 
           // Auto-select first available options
-          if (ui.hasVariants && ui.variants) {
-            const firstVariant = ui.variants[0];
+          if (p.hasVariants && p.variants) {
+            const firstVariant = p.variants[0];
             if (firstVariant) {
               setSelectedColor(firstVariant.attributes.color || null);
               setSelectedSize(firstVariant.attributes.size || null);
               setSelectedFabric(firstVariant.attributes.fabric || null);
             }
           } else {
+            const ui = mapDbToUiProduct(p);
             if (ui.colors.length === 1) setSelectedColor(ui.colors[0]);
             if (ui.sizes.length === 1) setSelectedSize(ui.sizes[0]);
           }
@@ -278,20 +280,20 @@ const ProductDetail = () => {
     return match || null;
   }, [uiProduct, selectedColor, selectedSize, selectedFabric]);
 
-  const originalPrice = useMemo(() => {
-    if (selectedVariant) return selectedVariant.price;
-    return uiProduct?.price || 0;
+  // Compute correct price with discount on base + variant adjustment
+  const { originalPrice, finalPrice, discountAmount } = useMemo(() => {
+    if (!uiProduct) return { originalPrice: 0, finalPrice: 0, discountAmount: 0 };
+    const variantPrice = selectedVariant?.price;
+    return computeFinalPrice(
+      uiProduct.basePrice,
+      uiProduct.discountPercent,
+      variantPrice
+    );
   }, [uiProduct, selectedVariant]);
-
-  const discountPercent = uiProduct?.discountPercent ?? 0;
-  const finalPrice = useMemo(() => {
-    const { finalPrice: fp } = computeDiscount(originalPrice, discountPercent);
-    return fp;
-  }, [originalPrice, discountPercent]);
 
   const displayStock = useMemo(() => {
     if (selectedVariant) return selectedVariant.quantity;
-    return uiProduct?.quantity || 0;
+    return uiProduct?.totalStock || 0;
   }, [uiProduct, selectedVariant]);
 
   const inStock = displayStock > 0;
@@ -341,7 +343,6 @@ const ProductDetail = () => {
   const requireSize = availableSizes.length > 1;
   const requireFabric = availableFabrics.length > 1;
 
-  // Wishlist handlers
   const isWishlisted = uiProduct ? isInWishlist(uiProduct._id) : false;
   const isWishlistLoading = wishlistLoading || isTogglingWishlist;
 
@@ -353,7 +354,6 @@ const ProductDetail = () => {
         await removeFromWishlist(uiProduct._id);
         toast({ title: "Removed from wishlist", description: `${uiProduct.name} removed.` });
       } else {
-        // Pass the product object; ensure it matches the Product type expected by the context
         await addToWishlist(uiProduct as any);
         toast({ title: "Added to wishlist", description: `${uiProduct.name} added to wishlist.` });
       }
@@ -364,7 +364,6 @@ const ProductDetail = () => {
     }
   };
 
-  // Validation and cart functions
   const validateSelections = () => {
     if (uiProduct?.hasVariants) {
       if (requireColor && !selectedColor) {
@@ -379,7 +378,7 @@ const ProductDetail = () => {
         toast({ title: "Select a fabric", description: "Please choose a fabric to continue." });
         return false;
       }
-      if (uiProduct.hasVariants && !selectedVariant) {
+      if (!selectedVariant) {
         toast({ title: "Invalid combination", description: "The selected combination is not available." });
         return false;
       }
@@ -389,9 +388,7 @@ const ProductDetail = () => {
 
   const handleAddToCart = async () => {
     if (!uiProduct) return;
-
     if (!validateSelections()) return;
-
     if (!inStock) {
       toast({ title: "Out of stock", description: "This product is currently unavailable." });
       return;
@@ -402,22 +399,28 @@ const ProductDetail = () => {
     if (selectedColor) attributes.color = selectedColor;
     if (selectedFabric) attributes.fabric = selectedFabric;
 
+    // Prepare cart product with correct pricing, GST, and customization flag
     const cartProduct = {
       id: uiProduct._id,
       name: uiProduct.name,
       category: uiProduct.category,
-      price: originalPrice,               // original price (for reference)
-      finalPrice: finalPrice,             // discounted price
-      discountPercent: discountPercent,
-      discountAmount: originalPrice - finalPrice,
+      basePrice: uiProduct.basePrice,
+      price: originalPrice,           // display original price (with variant upcharge)
+      finalPrice: finalPrice,         // discounted price
+      discountPercent: uiProduct.discountPercent,
+      discountAmount: discountAmount,
+      gst: uiProduct.gst,             // ✅ ADDED
+      isCustomized: uiProduct.isCustomized, // ✅ ADDED
       image: uiProduct.image,
       galleryImages: uiProduct.images,
       material: uiProduct.material,
       color: selectedColor || undefined,
       size: selectedSize || undefined,
+      fabric: selectedFabric || undefined,
       availability: inStock ? "In Stock" : "Out of Stock",
       stockQty: displayStock,
       description: uiProduct.description,
+      variantSku: selectedVariant?.sku,
     };
 
     await addToCart(cartProduct, quantity, selectedVariant, attributes);
@@ -432,15 +435,12 @@ const ProductDetail = () => {
 
   const handleBuyNow = async () => {
     if (!uiProduct) return;
-
     if (!validateSelections()) return;
-
     if (!getToken()) {
       toast({ title: "Login required", description: "Please login to continue checkout." });
       navigate(`/login?redirect=/checkout`);
       return;
     }
-
     if (!inStock) {
       toast({ title: "Out of stock", description: "This product is currently unavailable." });
       return;
@@ -455,27 +455,27 @@ const ProductDetail = () => {
       id: uiProduct._id,
       name: uiProduct.name,
       category: uiProduct.category,
+      basePrice: uiProduct.basePrice,
       price: originalPrice,
       finalPrice: finalPrice,
-      discountPercent: discountPercent,
-      discountAmount: originalPrice - finalPrice,
+      discountPercent: uiProduct.discountPercent,
+      discountAmount: discountAmount,
+      gst: uiProduct.gst,             // ✅ ADDED
+      isCustomized: uiProduct.isCustomized, // ✅ ADDED
       image: uiProduct.image,
       galleryImages: uiProduct.images,
       material: uiProduct.material,
       color: selectedColor || undefined,
       size: selectedSize || undefined,
+      fabric: selectedFabric || undefined,
       availability: inStock ? "In Stock" : "Out of Stock",
       stockQty: displayStock,
       description: uiProduct.description,
+      variantSku: selectedVariant?.sku,
     };
 
     await addToCart(cartProduct, quantity, selectedVariant, attributes);
-
-    toast({
-      title: "Proceeding to checkout",
-      description: `${quantity}x ${uiProduct.name} added.`,
-    });
-
+    toast({ title: "Proceeding to checkout", description: `${quantity}x ${uiProduct.name} added.` });
     navigate("/checkout");
   };
 
@@ -533,10 +533,15 @@ const ProductDetail = () => {
                     alt={uiProduct.name}
                     className="w-full h-full object-cover"
                   />
-
-                  {discountPercent > 0 && (
+                  {uiProduct.discountPercent > 0 && (
                     <span className="absolute top-4 left-4 bg-red-500 text-white text-sm font-bold px-3 py-1 rounded">
-                      -{discountPercent}%
+                      -{uiProduct.discountPercent}%
+                    </span>
+                  )}
+                  {/* ✅ Customizable Badge */}
+                  {uiProduct.isCustomized && (
+                    <span className="absolute top-4 right-4 bg-amber-500 text-white text-sm font-bold px-3 py-1 rounded">
+                      Customizable
                     </span>
                   )}
                 </div>
@@ -588,7 +593,7 @@ const ProductDetail = () => {
 
                   {/* Price */}
                   <div className="flex items-baseline gap-3 flex-wrap">
-                    {discountPercent > 0 && (
+                    {discountAmount > 0 && (
                       <span className="text-sm text-[#d6dfbd] line-through">
                         {formatINR(originalPrice)}
                       </span>
@@ -596,12 +601,9 @@ const ProductDetail = () => {
                     <span className="text-3xl font-bold text-[#eef4df]">
                       {formatINR(finalPrice)}
                     </span>
-                    {discountPercent > 0 && (
+                    {discountAmount > 0 && (
                       <span className="text-sm text-[#d6dfbd]">
-                        You save{" "}
-                        <span className="font-semibold text-[#f4f7ec]">
-                          {formatINR(originalPrice - finalPrice)}
-                        </span>
+                        You save {formatINR(discountAmount)}
                       </span>
                     )}
                   </div>
@@ -620,7 +622,6 @@ const ProductDetail = () => {
                         <p className="text-xs text-red-300">Required</p>
                       ) : null}
                     </div>
-
                     <div className="flex flex-wrap gap-2">
                       {availableColors.map((c) => {
                         const selected = selectedColor === c;
@@ -644,7 +645,6 @@ const ProductDetail = () => {
                             ) : (
                               <span className="text-sm text-[#f4f7ec]">{getColorName(c)}</span>
                             )}
-
                             {selected && (
                               <span className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-[#eef4df] text-[#3f4f22] flex items-center justify-center">
                                 <Check className="h-3.5 w-3.5" />
@@ -668,7 +668,6 @@ const ProductDetail = () => {
                         <p className="text-xs text-red-300">Required</p>
                       ) : null}
                     </div>
-
                     <div className="flex flex-wrap gap-2">
                       {availableSizes.map((s) => {
                         const selected = selectedSize === s;
@@ -702,7 +701,6 @@ const ProductDetail = () => {
                         <p className="text-xs text-red-300">Required</p>
                       ) : null}
                     </div>
-
                     <div className="flex flex-wrap gap-2">
                       {availableFabrics.map((f) => {
                         const selected = selectedFabric === f;
@@ -731,7 +729,10 @@ const ProductDetail = () => {
                     <span className="w-32 text-[#d6dfbd] text-sm">Material</span>
                     <span className="text-[#f4f7ec] text-sm">{uiProduct.material || "-"}</span>
                   </div>
-
+                  <div className="flex">
+                    <span className="w-32 text-[#d6dfbd] text-sm">GST</span>
+                    <span className="text-[#f4f7ec] text-sm">{uiProduct.gst}%</span>
+                  </div>
                   <div className="flex">
                     <span className="w-32 text-[#d6dfbd] text-sm">Availability</span>
                     <span
@@ -748,6 +749,22 @@ const ProductDetail = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* ✅ Customize Button (if customizable) */}
+                {uiProduct.isCustomized && (
+                  <div>
+                    <Button
+                      variant="outline"
+                      className="w-full border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                      onClick={() => navigate(`/customize/${uiProduct._id}`)}
+                    >
+                      ✨ Customize This Product
+                    </Button>
+                    <p className="text-xs text-[#d6dfbd] mt-2">
+                      Choose size, color, fabric, and add personal touches.
+                    </p>
+                  </div>
+                )}
 
                 {/* Quantity & Actions */}
                 <div className="space-y-4">
@@ -828,7 +845,6 @@ const ProductDetail = () => {
                   ))}
                 </div>
 
-                {/* Optional Delivery */}
                 {uiProduct.deliveryTime && uiProduct.deliveryTime.trim() && (
                   <div className="text-sm text-[#d6dfbd]">
                     Delivery Time:{" "}

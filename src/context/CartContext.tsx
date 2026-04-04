@@ -7,16 +7,15 @@ import React, {
   useState,
 } from "react";
 import type { Product as UiProduct } from "@/data/products";
+import { toast } from "sonner";
 
-const API_BASE = "https://api.jsgallor.com";
+const API_BASE = import.meta.env.VITE_API_BASE || "https://api.jsgallor.com";
 const CART_BASE = `${API_BASE}/api/midrange/cart`;
 const PRODUCTS_BASE = `${API_BASE}/api/midrange/products`;
 
 const LS_TOKEN_KEY = "midrange_token";
 const LS_GUEST_CART_KEY = "midrange_cart_guest";
 const LS_USER_KEY = "midrange_user";
-
-const DISCOUNT_PERCENT = 10;
 
 // -------------------- Types --------------------
 type StoredCartItem = {
@@ -28,6 +27,7 @@ type StoredCartItem = {
     color?: string | null;
     fabric?: string | null;
   };
+  productSnapshot?: CartProduct;
 };
 
 type BackendProduct = {
@@ -37,6 +37,9 @@ type BackendProduct = {
   description?: string;
   shortDescription?: string;
   price: number;
+  discount?: number;
+  gst?: number;
+  isCustomized?: boolean;
   quantity: number;
   availability?: string;
   status?: string;
@@ -56,6 +59,7 @@ type BackendProduct = {
     quantity: number;
     sku: string;
   }>;
+  deliveryTime?: string;
 };
 
 type BackendCartItem = {
@@ -68,6 +72,7 @@ type BackendCartItem = {
     color?: string | null;
     fabric?: string | null;
   };
+  productSnapshot?: CartProduct;
 };
 
 export interface CartProduct {
@@ -78,6 +83,8 @@ export interface CartProduct {
   finalPrice: number;
   discountPercent: number;
   discountAmount: number;
+  gst: number;
+  isCustomized: boolean;
   image: string;
   galleryImages: string[];
   material?: string;
@@ -91,6 +98,7 @@ export interface CartProduct {
     color?: string | null;
     fabric?: string | null;
   };
+  deliveryTime?: string;
 }
 
 interface CartItem {
@@ -128,7 +136,7 @@ function getSavedUserId(): string | null {
     const raw = localStorage.getItem(LS_USER_KEY);
     if (!raw) return null;
     const u = JSON.parse(raw);
-    return u?.id ? String(u.id) : null;
+    return u?.id ? String(u.id) : u?._id ? String(u._id) : null;
   } catch {
     return null;
   }
@@ -148,20 +156,25 @@ function mapBackendProductToCartProduct(
   p: BackendProduct,
   variant?: BackendProduct['variants'][0]
 ): CartProduct {
-  let price = Number(p.price || 0);
+  let originalPrice = Number(p.price || 0);
   if (variant) {
-    price = Number(variant.price || price);
+    originalPrice = Number(variant.price || originalPrice);
   }
-  const { discountAmount, finalPrice } = computeDiscount(price, DISCOUNT_PERCENT);
+  const discountPercent = Number(p.discount || 0);
+  const { discountAmount, finalPrice } = computeDiscount(originalPrice, discountPercent);
+  const gst = Number(p.gst || 0);
+  const isCustomized = p.isCustomized || false;
 
   return {
     id: String(p._id),
     name: p.name,
     category: p.category,
-    price,
+    price: originalPrice,
     finalPrice,
-    discountPercent: DISCOUNT_PERCENT,
+    discountPercent,
     discountAmount,
+    gst,
+    isCustomized,
     image: p.image,
     galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
     material: p.material,
@@ -177,6 +190,7 @@ function mapBackendProductToCartProduct(
           fabric: variant.attributes?.fabric,
         }
       : undefined,
+    deliveryTime: p.deliveryTime,
   };
 }
 
@@ -195,6 +209,8 @@ function uiProductToCartProduct(p: UiProduct): CartProduct {
     finalPrice: final,
     discountPercent,
     discountAmount,
+    gst: (p as any).gst || 0,
+    isCustomized: (p as any).isCustomized || false,
     image: (p as any).image,
     galleryImages,
     material: (p as any).material,
@@ -256,34 +272,42 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [items, setItems] = useState<CartItem[]>([]);
   const [isHydrating, setIsHydrating] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const didMergeRef = useRef(false);
+  const refreshInProgressRef = useRef(false);
 
-  // Persist guest cart
+  // Persist guest cart (with full snapshot)
   useEffect(() => {
-    localStorage.setItem(LS_GUEST_CART_KEY, JSON.stringify(stored));
+    if (!isLoggedIn() && stored.length > 0) {
+      localStorage.setItem(LS_GUEST_CART_KEY, JSON.stringify(stored));
+    }
   }, [stored]);
 
-  // ---------- Guest operations ----------
-  const guestAdd = (productId: string, qty: number, variantId?: string | null, attributes?: any) => {
+  // ---------- Guest operations (store snapshot) ----------
+  const guestAdd = (cartProduct: CartProduct, qty: number) => {
     const addQty = Math.max(1, Number(qty) || 1);
     setStored((prev) => {
       const existing = prev.find(
-        (x) => x.productId === productId && (x.variantId || null) === (variantId || null)
+        (x) =>
+          x.productId === cartProduct.id &&
+          (x.variantId || null) === (cartProduct.variantId || null)
       );
       if (existing) {
         return prev.map((x) =>
-          x.productId === productId && (x.variantId || null) === (variantId || null)
-            ? { ...x, quantity: x.quantity + addQty }
+          x.productId === cartProduct.id &&
+          (x.variantId || null) === (cartProduct.variantId || null)
+            ? { ...x, quantity: x.quantity + addQty, productSnapshot: cartProduct }
             : x
         );
       }
       return [
         ...prev,
         {
-          productId,
-          variantId: variantId || null,
+          productId: cartProduct.id,
+          variantId: cartProduct.variantId || null,
           quantity: addQty,
-          attributes: attributes || {},
+          attributes: cartProduct.variantAttributes || {},
+          productSnapshot: cartProduct,
         },
       ];
     });
@@ -315,11 +339,25 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const guestClear = () => {
     setStored([]);
     setItems([]);
+    localStorage.removeItem(LS_GUEST_CART_KEY);
   };
 
-  // ---------- Hydration ----------
+  // Helper to generate consistent item ID for guest carts
+  const getGuestItemId = (productId: string, variantId?: string | null): string => {
+    return variantId ? `${productId}:${variantId}` : productId;
+  };
+
+  // ---------- Hydration (from backend or guest storage) ----------
   const refreshCartFromBackend = async () => {
+    // Prevent multiple simultaneous refresh calls
+    if (refreshInProgressRef.current) {
+      return;
+    }
+
+    refreshInProgressRef.current = true;
     setIsHydrating(true);
+    setError(null);
+
     try {
       if (isLoggedIn()) {
         const userId = getSavedUserId();
@@ -327,30 +365,58 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setItems([]);
           return;
         }
+        
         const res = await apiFetch(`${CART_BASE}/${userId}`, { method: "GET" });
+        
         if (!res.ok) {
-          setItems([]);
+          if (res.status === 404) {
+            setItems([]);
+          } else {
+            throw new Error(`Failed to fetch cart: ${res.status}`);
+          }
           return;
         }
+        
         const json = await res.json();
         const backendItems: BackendCartItem[] = json?.data?.items ?? [];
 
-        const mapped: CartItem[] = backendItems.map((it) => ({
-          _id: it._id,
-          product: mapBackendProductToCartProduct(it.product, it.variant),
-          quantity: Math.max(1, Number(it.quantity) || 1),
-        }));
+        const mapped: CartItem[] = backendItems.map((it) => {
+          let product: CartProduct;
+          if (it.productSnapshot) {
+            product = it.productSnapshot as CartProduct;
+          } else {
+            product = mapBackendProductToCartProduct(it.product, it.variant);
+          }
+          return {
+            _id: it._id,
+            product,
+            quantity: Math.max(1, Number(it.quantity) || 1),
+          };
+        });
 
         setItems(mapped);
         return;
       }
 
-      // Guest
+      // Guest: restore from stored snapshots
       if (stored.length === 0) {
         setItems([]);
         return;
       }
 
+      // If stored items have productSnapshot, use them directly
+      const hasAllSnapshots = stored.every((x) => x.productSnapshot);
+      if (hasAllSnapshots) {
+        const guestItems: CartItem[] = stored.map((x) => ({
+          _id: getGuestItemId(x.productId, x.variantId),
+          product: x.productSnapshot!,
+          quantity: x.quantity,
+        }));
+        setItems(guestItems);
+        return;
+      }
+
+      // Fallback: fetch each product from API (legacy)
       const results = await Promise.all(
         stored.map(async (it) => {
           const p = await fetchMidrangeProductById(it.productId);
@@ -359,25 +425,35 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (it.variantId && p.variants) {
             variant = p.variants.find((v) => String(v._id) === String(it.variantId));
           }
+          const cartProduct = mapBackendProductToCartProduct(p, variant);
           return {
-            product: mapBackendProductToCartProduct(p, variant),
+            _id: getGuestItemId(it.productId, it.variantId),
+            product: cartProduct,
             quantity: Math.max(1, Number(it.quantity) || 1),
           } as CartItem;
         })
       );
-
+      
       const cleaned = results.filter(Boolean) as CartItem[];
       setItems(cleaned);
+      
+      // update stored with snapshots for future
       setStored(
         cleaned.map((x) => ({
           productId: x.product.id,
           variantId: x.product.variantId,
           quantity: x.quantity,
-          attributes: x.product.variantAttributes,
+          attributes: x.product.variantAttributes || {},
+          productSnapshot: x.product,
         }))
       );
+    } catch (err) {
+      console.error("Error refreshing cart:", err);
+      setError(err instanceof Error ? err.message : "Failed to load cart");
+      toast.error("Failed to load cart. Please refresh the page.");
     } finally {
       setIsHydrating(false);
+      refreshInProgressRef.current = false;
     }
   };
 
@@ -388,31 +464,44 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     didMergeRef.current = true;
 
     if (stored.length > 0) {
-      await apiFetch(CART_BASE, {
-        method: "PUT",
-        body: JSON.stringify({
-          items: stored.map((x) => ({
-            productId: x.productId,
-            variantId: x.variantId,
-            quantity: x.quantity,
-            attributes: x.attributes,
-          })),
-        }),
-      });
-      setStored([]);
-      localStorage.removeItem(LS_GUEST_CART_KEY);
+      try {
+        // Send full snapshot to backend
+        const res = await apiFetch(CART_BASE, {
+          method: "PUT",
+          body: JSON.stringify({
+            items: stored.map((x) => ({
+              productId: x.productId,
+              variantId: x.variantId,
+              quantity: x.quantity,
+              attributes: x.attributes,
+              productSnapshot: x.productSnapshot,
+            })),
+          }),
+        });
+
+        if (res.ok) {
+          setStored([]);
+          localStorage.removeItem(LS_GUEST_CART_KEY);
+        }
+      } catch (err) {
+        console.error("Error merging guest cart:", err);
+      }
     }
     await refreshCartFromBackend();
   };
 
   useEffect(() => {
     mergeGuestToBackendIfNeeded();
-    if (!isLoggedIn()) refreshCartFromBackend();
+    if (!isLoggedIn()) {
+      refreshCartFromBackend();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!isLoggedIn()) refreshCartFromBackend();
+    if (!isLoggedIn()) {
+      refreshCartFromBackend();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(stored)]);
 
@@ -424,44 +513,72 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     attributes?: { size?: string; color?: string; fabric?: string }
   ) => {
     const addQty = Math.max(1, Number(qty) || 1);
-    const cartProduct: CartProduct = isCartProduct(product)
-      ? product
-      : uiProductToCartProduct(product);
+    let cartProduct: CartProduct;
+    
+    if (isCartProduct(product)) {
+      cartProduct = product;
+    } else {
+      cartProduct = uiProductToCartProduct(product);
+    }
 
+    // Override variantId and attributes if provided
     const finalVariantId = variantId !== undefined ? variantId : cartProduct.variantId;
     const finalAttributes = attributes || cartProduct.variantAttributes || {};
+    const finalCartProduct = {
+      ...cartProduct,
+      variantId: finalVariantId,
+      variantAttributes: finalAttributes,
+    };
 
     if (!isLoggedIn()) {
-      guestAdd(cartProduct.id, addQty, finalVariantId, finalAttributes);
+      guestAdd(finalCartProduct, addQty);
       setItems((prev) => {
         const existing = prev.find(
           (x) =>
-            x.product.id === cartProduct.id &&
+            x.product.id === finalCartProduct.id &&
             (x.product.variantId || null) === (finalVariantId || null)
         );
         if (existing) {
           return prev.map((x) =>
-            x.product.id === cartProduct.id &&
+            x.product.id === finalCartProduct.id &&
             (x.product.variantId || null) === (finalVariantId || null)
               ? { ...x, quantity: x.quantity + addQty }
               : x
           );
         }
-        return [...prev, { product: cartProduct, quantity: addQty }];
+        return [...prev, { 
+          _id: getGuestItemId(finalCartProduct.id, finalVariantId),
+          product: finalCartProduct, 
+          quantity: addQty 
+        }];
       });
+      toast.success(`Added ${finalCartProduct.name} to cart`);
       return;
     }
 
-    await apiFetch(`${CART_BASE}/add`, {
-      method: "POST",
-      body: JSON.stringify({
-        productId: cartProduct.id,
-        variantId: finalVariantId,
-        quantity: addQty,
-        attributes: finalAttributes,
-      }),
-    });
-    await refreshCartFromBackend();
+    try {
+      const res = await apiFetch(`${CART_BASE}/add`, {
+        method: "POST",
+        body: JSON.stringify({
+          productId: finalCartProduct.id,
+          variantId: finalVariantId,
+          quantity: addQty,
+          attributes: finalAttributes,
+          productSnapshot: finalCartProduct,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to add to cart");
+      }
+
+      await refreshCartFromBackend();
+      toast.success(`Added ${finalCartProduct.name} to cart`);
+    } catch (err) {
+      console.error("Error adding to cart:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to add to cart");
+    }
   };
 
   const removeFromCart = async (itemId: string) => {
@@ -469,52 +586,90 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const [pid, vid] = itemId.split(':');
       guestRemove(pid, vid || null);
       setItems((prev) =>
-        prev.filter(
-          (x) => !(x.product.id === pid && (x.product.variantId || '') === (vid || ''))
-        )
+        prev.filter((x) => {
+          const xId = getGuestItemId(x.product.id, x.product.variantId);
+          return xId !== itemId;
+        })
       );
+      toast.success("Item removed from cart");
       return;
     }
-    await apiFetch(`${CART_BASE}/item/${itemId}`, { method: "DELETE" });
-    await refreshCartFromBackend();
+
+    try {
+      const res = await apiFetch(`${CART_BASE}/item/${itemId}`, { method: "DELETE" });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to remove item");
+      }
+
+      await refreshCartFromBackend();
+      toast.success("Item removed from cart");
+    } catch (err) {
+      console.error("Error removing from cart:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to remove item");
+    }
   };
 
   const updateQuantity = async (itemId: string, quantity: number) => {
-    const q = Number(quantity);
+    const q = Math.max(1, Number(quantity));
+    
     if (!isLoggedIn()) {
       const [pid, vid] = itemId.split(':');
       guestUpdateQty(pid, vid || null, q);
-      if (q <= 0) {
-        setItems((prev) =>
-          prev.filter(
-            (x) => !(x.product.id === pid && (x.product.variantId || '') === (vid || ''))
-          )
-        );
-      } else {
-        setItems((prev) =>
-          prev.map((x) =>
-            x.product.id === pid && (x.product.variantId || '') === (vid || '')
-              ? { ...x, quantity: q }
-              : x
-          )
-        );
-      }
+      setItems((prev) =>
+        prev.map((x) => {
+          const xId = getGuestItemId(x.product.id, x.product.variantId);
+          if (xId === itemId) {
+            return { ...x, quantity: q };
+          }
+          return x;
+        })
+      );
       return;
     }
-    await apiFetch(`${CART_BASE}/item/${itemId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ quantity: q }),
-    });
-    await refreshCartFromBackend();
+
+    try {
+      const res = await apiFetch(`${CART_BASE}/item/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ quantity: q }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to update quantity");
+      }
+
+      await refreshCartFromBackend();
+    } catch (err) {
+      console.error("Error updating quantity:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to update quantity");
+      // Refresh to revert any optimistic updates
+      await refreshCartFromBackend();
+    }
   };
 
   const clearCart = async () => {
     if (!isLoggedIn()) {
       guestClear();
+      toast.message("Cart cleared");
       return;
     }
-    await apiFetch(CART_BASE, { method: "DELETE" });
-    await refreshCartFromBackend();
+
+    try {
+      const res = await apiFetch(CART_BASE, { method: "DELETE" });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to clear cart");
+      }
+
+      await refreshCartFromBackend();
+      toast.message("Cart cleared");
+    } catch (err) {
+      console.error("Error clearing cart:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to clear cart");
+    }
   };
 
   const totalItems = useMemo(() => {

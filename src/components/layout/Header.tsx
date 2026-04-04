@@ -14,7 +14,7 @@ import {
   Loader2,
   Heart,
 } from "lucide-react";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, FormEvent } from "react";
 import { useCart } from "@/context/CartContext";
 import { useMidrangeAuth, useMembership } from "@/context/MidrangeAuthContext";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ export const Header = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ✅ Location state
+  // Location state
   const [location, setLocation] = useState<{
     city?: string;
     loading: boolean;
@@ -61,7 +61,16 @@ export const Header = () => {
   const navigate = useNavigate();
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // ✅ Get user location
+  // Search handler
+  const handleSearch = (e: FormEvent) => {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
+    navigate(`/search?q=${encodeURIComponent(trimmed)}`);
+    setIsSearchOpen(false); // close mobile search drawer
+  };
+
+  // Get user location
   const getUserLocation = () => {
     if (!navigator.geolocation) {
       setLocation({ loading: false, error: "Geolocation not supported" });
@@ -271,7 +280,8 @@ export const Header = () => {
             </div>
           </Link>
 
-          <div className="hidden md:flex flex-1 max-w-md mx-8">
+          {/* Desktop search form */}
+          <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-8">
             <div className="relative w-full">
               <Input
                 value={searchQuery}
@@ -280,11 +290,11 @@ export const Header = () => {
                 placeholder="Search mid-range furniture..."
                 className="w-full pl-4 pr-10 bg-white/10 border-white/15 text-[#f7ecd7] placeholder:text-[#cdbf9e] focus:border-[#f3deb0] focus:ring-1 focus:ring-[#f3deb0]/20"
               />
-              <button className="absolute right-3 top-1/2 -translate-y-1/2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors">
+              <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors">
                 <Search className="w-4 h-4" />
               </button>
             </div>
-          </div>
+          </form>
 
           <div className="flex items-center gap-2 md:gap-4">
             <button
@@ -316,7 +326,7 @@ export const Header = () => {
             <Link to="/wishlist" className="relative text-[#d6dfbd] hover:text-[#eef4df] transition-colors">
               <Heart className="h-5 w-5" />
             </Link>
-            {/* ✅ Location button with live detection */}
+            {/* Location button with live detection */}
             <button
               onClick={getUserLocation}
               disabled={location.loading}
@@ -429,7 +439,7 @@ export const Header = () => {
                           )}
                         </button>
                         
-                        {/* ✅ NEW BUTTONS - Mobile */}
+                        {/* Mobile buttons */}
                         <div className="flex flex-col gap-2 mb-4">
                           <a
                             href="https://essentialstudio.jsgallor.com"
@@ -518,9 +528,10 @@ export const Header = () => {
           </div>
         </div>
 
+        {/* Mobile search drawer */}
         {isSearchOpen && (
           <div className="md:hidden pb-4 animate-in fade-in slide-in-from-top">
-            <div className="relative">
+            <form onSubmit={handleSearch} className="relative">
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -528,26 +539,23 @@ export const Header = () => {
                 placeholder="Search mid-range furniture..."
                 className="w-full bg-white/10 border-white/15 text-[#f7ecd7] placeholder:text-[#cdbf9e] focus:border-[#f3deb0]"
               />
-              <button className="absolute right-3 top-1/2 -translate-y-1/2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors">
+              <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors">
                 <Search className="w-4 h-4" />
               </button>
-            </div>
+            </form>
           </div>
         )}
       </div>
 
-      {/* ✅ FULL SCREEN MOBILE MENU with solid background */}
+      {/* FULL SCREEN MOBILE MENU with solid background */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          {/* Dark backdrop with blur */}
           <div
             className="absolute inset-0 bg-black/80 backdrop-blur-md"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          {/* Menu content - full viewport height with SOLID BACKGROUND */}
           <div className="relative w-full min-h-[100dvh] bg-[#4b5e29] overflow-y-auto">
             <div className="container mx-auto px-4 py-6 min-h-[100dvh] flex flex-col">
-              {/* Close button at top right */}
               <div className="flex justify-end">
                 <button
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -557,7 +565,6 @@ export const Header = () => {
                 </button>
               </div>
 
-              {/* Menu items - centered and spaced */}
               <div className="flex-1 flex flex-col justify-center space-y-8 py-8">
                 {/* Categories */}
                 <div>

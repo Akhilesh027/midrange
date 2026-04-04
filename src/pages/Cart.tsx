@@ -66,7 +66,6 @@ function getSavedUserId(): string | null {
   }
 }
 
-// Helper to get color name from hex (if needed)
 const getColorName = (hex: string) => {
   const colors: Record<string, string> = {
     "#8B7355": "Brown",
@@ -81,7 +80,7 @@ const getColorName = (hex: string) => {
 
 const Cart = () => {
   const navigate = useNavigate();
-  const { items, updateQuantity, removeFromCart, totalPrice, clearCart } = useCart();
+  const { items, updateQuantity, removeFromCart, totalPrice, clearCart, refreshCartFromBackend } = useCart();
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat("en-IN", {
@@ -97,22 +96,33 @@ const Cart = () => {
   const [discount, setDiscount] = useState(0);
   const [shippingDiscount, setShippingDiscount] = useState(0);
 
+  // ✅ Dynamic shipping based on subtotal (after discount)
   const shippingBase = totalPrice > 10000 ? 0 : 499;
   const shipping = Math.max(0, shippingBase - shippingDiscount);
 
-  const taxableAmount = Math.max(0, totalPrice - discount) + shipping;
-  const tax = Math.round(taxableAmount * 0.18);
+  // ✅ Dynamic GST: sum of (item.finalPrice * quantity * gst%) for each item
+  const tax = useMemo(() => {
+    let totalTax = 0;
+    for (const item of items) {
+      const gstPercent = item.product.gst || 0;
+      const itemTotal = item.product.finalPrice * item.quantity;
+      const itemTax = itemTotal * (gstPercent / 100);
+      totalTax += itemTax;
+    }
+    return Math.round(totalTax);
+  }, [items]);
 
+  // ✅ Final total: subtotal after coupon + shipping + GST
   const finalTotal = Math.max(0, totalPrice - discount) + shipping + tax;
 
   const userId = getSavedUserId();
 
+  // Coupon persistence
   useEffect(() => {
     try {
       const saved = localStorage.getItem(`${WEBSITE}_coupon`);
       if (!saved) return;
       const parsed = JSON.parse(saved);
-
       setCouponCode(parsed?.code || "");
       setCouponApplied(parsed?.coupon || null);
       setDiscount(Number(parsed?.discount || 0));
@@ -135,97 +145,36 @@ const Cart = () => {
     localStorage.removeItem(`${WEBSITE}_coupon`);
   };
 
-  // ✅ build rich cart item payload for category-specific coupons
+  // Build coupon payload with category support
   const buildCouponItemsPayload = () => {
     return items.map((item: any) => {
       const product = item?.product || {};
-      const snap = item?.productSnapshot || {};
       const qty = Number(item?.quantity || 1);
-
-      const unitPrice = Number(
-        product?.price ??
-          snap?.afterDiscount ??
-          snap?.finalPrice ??
-          snap?.salesPrice ??
-          snap?.price ??
-          0
-      );
+      const unitPrice = product.finalPrice || 0;
 
       return {
-        productId: item?.productId || item?.product?.id || item?.product?._id,
+        productId: product.id || product._id,
         quantity: qty,
         price: unitPrice,
         lineTotal: unitPrice * qty,
-
-        categoryId:
-          item?.categoryId ||
-          product?.categoryId ||
-          snap?.categoryId ||
-          product?.subcategoryId ||
-          snap?.subcategoryId ||
-          (typeof product?.category === "object"
-            ? product?.category?._id || product?.category?.id
-            : undefined) ||
-          (typeof snap?.category === "object"
-            ? snap?.category?._id || snap?.category?.id
-            : undefined) ||
-          (typeof product?.subcategory === "object"
-            ? product?.subcategory?._id || product?.subcategory?.id
-            : undefined) ||
-          (typeof snap?.subcategory === "object"
-            ? snap?.subcategory?._id || snap?.subcategory?.id
-            : undefined) ||
-          (typeof product?.category === "string" ? product.category : undefined) ||
-          (typeof snap?.category === "string" ? snap.category : undefined) ||
-          (typeof product?.subcategory === "string" ? product.subcategory : undefined) ||
-          (typeof snap?.subcategory === "string" ? snap.subcategory : undefined),
-
-        category: product?.category ?? snap?.category ?? undefined,
-
-        subcategoryId:
-          product?.subcategoryId ||
-          snap?.subcategoryId ||
-          (typeof product?.subcategory === "object"
-            ? product?.subcategory?._id || product?.subcategory?.id
-            : undefined) ||
-          (typeof snap?.subcategory === "object"
-            ? snap?.subcategory?._id || snap?.subcategory?.id
-            : undefined),
-
-        subcategory: product?.subcategory ?? snap?.subcategory ?? undefined,
-
+        categoryId: product.categoryId,
+        category: product.category,
+        subcategoryId: product.subcategoryId,
+        subcategory: product.subcategory,
         product: {
-          categoryId:
-            product?.categoryId ||
-            snap?.categoryId ||
-            (typeof product?.category === "object"
-              ? product?.category?._id || product?.category?.id
-              : undefined) ||
-            (typeof snap?.category === "object"
-              ? snap?.category?._id || snap?.category?.id
-              : undefined),
-          category: product?.category ?? snap?.category,
-          subcategoryId:
-            product?.subcategoryId ||
-            snap?.subcategoryId ||
-            (typeof product?.subcategory === "object"
-              ? product?.subcategory?._id || product?.subcategory?.id
-              : undefined) ||
-            (typeof snap?.subcategory === "object"
-              ? snap?.subcategory?._id || snap?.subcategory?.id
-              : undefined),
-          subcategory: product?.subcategory ?? snap?.subcategory,
+          categoryId: product.categoryId,
+          category: product.category,
+          subcategoryId: product.subcategoryId,
+          subcategory: product.subcategory,
           price: unitPrice,
         },
-
         productSnapshot: {
-          categoryId: snap?.categoryId,
-          category: snap?.category,
-          subcategoryId: snap?.subcategoryId,
-          subcategory: snap?.subcategory,
-          price: snap?.price,
-          finalPrice: snap?.finalPrice,
-          afterDiscount: snap?.afterDiscount,
+          categoryId: product.categoryId,
+          category: product.category,
+          subcategoryId: product.subcategoryId,
+          subcategory: product.subcategory,
+          price: product.price,
+          finalPrice: product.finalPrice,
         },
       };
     });
@@ -246,7 +195,6 @@ const Cart = () => {
 
     try {
       setCouponLoading(true);
-
       const res = await apiFetch("/coupons/apply", {
         method: "POST",
         body: JSON.stringify({
@@ -259,7 +207,6 @@ const Cart = () => {
       });
 
       const json = await res.json();
-
       if (!res.ok) {
         setCouponApplied(null);
         setDiscount(0);
@@ -300,7 +247,6 @@ const Cart = () => {
       setCouponApplied(normalizedCoupon);
       setDiscount(backendDiscount);
       setShippingDiscount(backendShippingDiscount);
-
       persistCoupon({
         code: normalizedCoupon.code || code,
         coupon: normalizedCoupon,
@@ -331,15 +277,48 @@ const Cart = () => {
     toast.message("Coupon removed");
   };
 
-  // re-check coupon whenever price/cart changes
+  // Re-check coupon when cart changes
   useEffect(() => {
     if (!couponApplied?.code) return;
     applyCouponInternal(couponApplied.code, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalPrice, shippingBase, items.length]);
 
-  const handleProceedToCheckout = () => {
+  // ✅ FIXED: Generate unique item ID that matches context expectations
+  const getItemId = (item: any): string => {
+    // If item has backend _id, use it (for logged-in users)
+    if (item._id) return item._id;
+    
+    // For guest users, create composite key
+    const productId = item.product.id;
+    const variantId = item.product.variantId;
+    return variantId ? `${productId}:${variantId}` : productId;
+  };
+
+  const handleUpdateQuantity = async (item: any, newQuantity: number) => {
+    if (newQuantity < 1) {
+      await handleRemoveItem(item);
+      return;
+    }
+    
+    const itemId = getItemId(item);
+    await updateQuantity(itemId, newQuantity);
+    // Refresh cart to ensure UI is in sync
+    await refreshCartFromBackend();
+  };
+
+  const handleRemoveItem = async (item: any) => {
+    const itemId = getItemId(item);
+    await removeFromCart(itemId);
+    await refreshCartFromBackend();
+    toast.success("Item removed from cart");
+  };
+
+  const handleProceedToCheckout = async () => {
     if (items.length === 0) return;
+
+    // Refresh cart before proceeding to ensure latest data
+    await refreshCartFromBackend();
 
     if (couponApplied) {
       navigate("/checkout", {
@@ -362,7 +341,6 @@ const Cart = () => {
       });
       return;
     }
-
     navigate("/checkout");
   };
 
@@ -429,32 +407,12 @@ const Cart = () => {
 
                 {items.map((item: any) => {
                   const product = item.product || {};
-                  const snap = item.productSnapshot || {};
-
-                  // Unique identifier for cart operations
-                  const itemId = item._id || `${product.id}:${product.variantId || ''}`;
-
-                  const productId = product.id || product._id || item.productId;
-                  const image = product.image || snap.image || "";
-                  const name = product.name || snap.name || "Product";
-                  const category =
-                    product.category ||
-                    (typeof snap.category === "object"
-                      ? snap.category?.name || snap.category?.slug
-                      : snap.category) ||
-                    "";
-
-                  const price = Number(
-                    product.price ??
-                      snap.afterDiscount ??
-                      snap.finalPrice ??
-                      snap.salesPrice ??
-                      snap.price ??
-                      0
-                  );
-
-                  // Variant attributes
+                  const image = product.image || "";
+                  const name = product.name || "Product";
+                  const category = product.category || "";
+                  const price = product.finalPrice || 0;
                   const variantAttributes = product.variantAttributes || {};
+                  const itemId = getItemId(item);
 
                   return (
                     <div
@@ -462,24 +420,24 @@ const Cart = () => {
                       className="grid grid-cols-1 md:grid-cols-12 gap-4 px-4 md:px-6 py-4 border-b border-white/10 last:border-b-0"
                     >
                       <div className="md:col-span-6 flex gap-4">
-                        <Link to={`/product/${productId}`} className="flex-shrink-0">
+                        <Link to={`/product/${product.id}`} className="flex-shrink-0">
                           <img
                             src={image}
                             alt={name}
                             className="w-20 h-20 rounded-lg object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "https://via.placeholder.com/80?text=No+Image";
+                            }}
                           />
                         </Link>
                         <div className="flex-1 min-w-0">
                           <Link
-                            to={`/product/${productId}`}
+                            to={`/product/${product.id}`}
                             className="font-medium text-[#f4f7ec] hover:text-[#eef4df] transition-colors line-clamp-1"
                           >
                             {name}
                           </Link>
-                          <p className="text-sm text-[#d6dfbd]">
-                            {typeof category === "string" ? category : ""}
-                          </p>
-                          {/* Display variant attributes */}
+                          <p className="text-sm text-[#d6dfbd]">{category}</p>
                           {(variantAttributes.color || variantAttributes.size || variantAttributes.fabric) && (
                             <div className="flex flex-wrap gap-2 mt-1 text-xs">
                               {variantAttributes.color && (
@@ -504,7 +462,7 @@ const Cart = () => {
                             </div>
                           )}
                           <button
-                            onClick={() => removeFromCart(itemId)}
+                            onClick={() => handleRemoveItem(item)}
                             className="mt-2 text-sm text-red-300 hover:underline flex items-center gap-1 md:hidden"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -522,15 +480,15 @@ const Cart = () => {
                         <span className="md:hidden text-[#d6dfbd] text-sm">Quantity:</span>
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => updateQuantity(itemId, item.quantity - 1)}
-                            className="w-8 h-8 rounded bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-[#eef4df]"
+                            onClick={() => handleUpdateQuantity(item, item.quantity - 1)}
+                            className="w-8 h-8 rounded bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-[#eef4df] disabled:opacity-50"
                             disabled={item.quantity <= 1}
                           >
                             <Minus className="w-3 h-3" />
                           </button>
                           <span className="w-10 text-center text-sm text-[#f4f7ec]">{item.quantity}</span>
                           <button
-                            onClick={() => updateQuantity(itemId, item.quantity + 1)}
+                            onClick={() => handleUpdateQuantity(item, item.quantity + 1)}
                             className="w-8 h-8 rounded bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-[#eef4df]"
                           >
                             <Plus className="w-3 h-3" />
@@ -544,7 +502,7 @@ const Cart = () => {
                           {formatPrice(price * item.quantity)}
                         </span>
                         <button
-                          onClick={() => removeFromCart(itemId)}
+                          onClick={() => handleRemoveItem(item)}
                           className="hidden md:block text-[#d6dfbd] hover:text-red-300 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -638,7 +596,7 @@ const Cart = () => {
                   </div>
 
                   <div className="flex justify-between text-sm">
-                    <span className="text-[#d6dfbd]">Tax (18% GST)</span>
+                    <span className="text-[#d6dfbd]">Tax (GST)</span>
                     <span className="text-[#f4f7ec]">{formatPrice(tax)}</span>
                   </div>
                 </div>
@@ -671,8 +629,8 @@ const Cart = () => {
                 <Button
                   variant="outline"
                   className="w-full mt-3 border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
-                  onClick={() => {
-                    clearCart();
+                  onClick={async () => {
+                    await clearCart();
                     handleRemoveCoupon();
                     toast.message("Cart cleared");
                   }}
