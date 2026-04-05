@@ -237,7 +237,6 @@ export default function Index() {
         {/* Hero */}
         <section className="relative overflow-hidden bg-gradient-to-br from-[#4f622b] via-[#556b2f] to-[#3f4f22]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.05),transparent_25%)]" />
-
           <div className="container relative mx-auto px-4 py-16 md:py-24">
             <div className="grid md:grid-cols-2 gap-8 items-center">
               <div className="space-y-6 animate-fade-in">
@@ -289,7 +288,9 @@ export default function Index() {
                     <p className="text-white/60">Loading products...</p>
                   </div>
                 ) : sliderProducts.length > 0 ? (
-                  <ProductSlider products={sliderProducts} autoSlideInterval={10000} />
+                  <Link to={`/product/${sliderProducts[0].id}`} className="block rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+                    <ProductSlider products={sliderProducts} autoSlideInterval={10000} />
+                  </Link>
                 ) : (
                   <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-gray-800 h-[400px] md:h-[500px] flex items-center justify-center">
                     <p className="text-white/60">No products available</p>

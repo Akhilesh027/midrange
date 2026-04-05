@@ -1,62 +1,94 @@
 // src/pages/SearchPage.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Search } from "lucide-react";
 import { ProductCard } from "@/components/products/ProductCard";
 
 const API_MIDRANGE = "https://api.jsgallor.com/api/midrange/products";
-// const API_AFFORDABLE = "https://api.jsgallor.com/api/affordable/products";
 
 type Product = {
   _id: string;
   name: string;
   price: number;
   image?: string;
+  images?: string[];
   category: string;
   subcategory?: string;
-  // add any other fields your product card expects
+  description?: string;
+  sku?: string;
 };
 
 export default function SearchPage() {
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const fetchedRef = useRef(false);
 
+  // Fetch ALL products by paginating through all pages
   useEffect(() => {
-    if (!query.trim()) {
-      setProducts([]);
-      return;
-    }
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
 
-    const fetchSearchResults = async () => {
+    const fetchAllPages = async () => {
       setLoading(true);
-      setError("");
+      let allItems: Product[] = [];
+      let page = 1;
+      const limit = 100; // max allowed by backend
+      let totalPages = 1;
+
       try {
-        // Fetch from midrange API with search parameter
-        const res = await fetch(`${API_MIDRANGE}?search=${encodeURIComponent(query)}`);
-        if (!res.ok) throw new Error("Failed to fetch products");
-
-        const data = await res.json();
-        const items: Product[] = Array.isArray(data) ? data : data?.products || [];
-        setProducts(items);
-
-        // Optional: also fetch from affordable API and merge
-        // const affRes = await fetch(`${API_AFFORDABLE}?search=${encodeURIComponent(query)}`);
-        // const affData = await affRes.json();
-        // const affItems = Array.isArray(affData) ? affData : affData?.products || [];
-        // setProducts([...items, ...affItems]);
+        while (page <= totalPages) {
+          const url = `${API_MIDRANGE}?limit=${limit}&page=${page}`;
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          // Extract items from { data: [] } response
+          const items: Product[] = data?.data || [];
+          allItems.push(...items);
+          // Update totalPages from pagination metadata
+          if (data?.pagination?.totalPages) {
+            totalPages = data.pagination.totalPages;
+          } else if (items.length < limit) {
+            // If no pagination object but fewer items than limit, this is the last page
+            break;
+          }
+          page++;
+        }
+        setAllProducts(allItems);
+        console.log(`Fetched ${allItems.length} products across ${page - 1} pages`);
       } catch (err: any) {
-        setError(err.message || "Search failed");
+        console.error(err);
+        setError("Failed to load products. Please refresh.");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchSearchResults();
-  }, [query]);
+    fetchAllPages();
+  }, []);
+
+  // Client-side filtering
+  useEffect(() => {
+    if (!query.trim()) {
+      setFilteredProducts([]);
+      return;
+    }
+    const lowerQuery = query.toLowerCase().trim();
+    const results = allProducts.filter(p =>
+      p.name?.toLowerCase().includes(lowerQuery) ||
+      p.category?.toLowerCase().includes(lowerQuery) ||
+      p.subcategory?.toLowerCase().includes(lowerQuery) ||
+      p.description?.toLowerCase().includes(lowerQuery) ||
+      p.sku?.toLowerCase().includes(lowerQuery)
+    );
+    setFilteredProducts(results);
+  }, [query, allProducts]);
+
+  const normaliseImage = (p: Product) => p.image ?? (p.images?.[0]) ?? "/placeholder-image.jpg";
 
   return (
     <Layout>
@@ -66,9 +98,13 @@ export default function SearchPage() {
             <Search className="h-6 w-6" />
             Search Results
           </h1>
-          <p className="text-[#cdbf9e] mt-1">
-            {loading ? "Searching..." : `Found ${products.length} products for "${query}"`}
-          </p>
+          <div className="text-[#cdbf9e] mt-1">
+            {!query.trim()
+              ? "Enter a search term"
+              : loading
+              ? "Loading products..."
+              : `Found ${filteredProducts.length} product${filteredProducts.length !== 1 ? "s" : ""} for "${query}"`}
+          </div>
         </div>
 
         {error && (
@@ -77,21 +113,33 @@ export default function SearchPage() {
           </div>
         )}
 
-        {loading ? (
+        {loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-80 bg-white/5 animate-pulse rounded-xl" />
             ))}
           </div>
-        ) : products.length === 0 ? (
+        )}
+
+        {!loading && query.trim() && filteredProducts.length === 0 && (
           <div className="text-center py-16">
             <p className="text-lg text-[#cdbf9e]">No products found for "{query}"</p>
-            <p className="text-sm text-[#cdbf9e] mt-2">Try a different search term</p>
+            <p className="text-sm text-[#cdbf9e] mt-2">
+              Try a different search term
+            </p>
           </div>
-        ) : (
+        )}
+
+        {!loading && filteredProducts.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {products.map((product) => (
-              <ProductCard key={product._id} product={product} />
+            {filteredProducts.map((product) => (
+              <ProductCard
+                key={product._id}
+                product={{
+                  ...product,
+                  image: normaliseImage(product),
+                }}
+              />
             ))}
           </div>
         )}

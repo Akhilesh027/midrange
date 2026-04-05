@@ -61,7 +61,7 @@ export const Header = () => {
   const navigate = useNavigate();
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Search handler
+  // Search handler – closes mobile search drawer after submit
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
     const trimmed = searchQuery.trim();

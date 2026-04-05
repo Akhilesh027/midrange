@@ -4,19 +4,25 @@ import { useCart } from '@/context/CartContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 
-// Unified product type (supports both local and API)
+// Extended product type to support both local and API structures
 interface UnifiedProduct {
-  id?: string;          // local product id
-  _id?: string;         // API product id
+  id?: string;           // local product id
+  _id?: string;          // API product id
   name: string;
   price: number;
-  oldPrice?: number;    // local discount support
-  newPrice?: number;    // local discount support
+  oldPrice?: number;     // local discount support
+  newPrice?: number;     // local discount support
+  discount?: number;     // API discount percentage
+  hasVariants?: boolean;
+  variants?: Array<{
+    price: number;
+    attributes?: any;
+    sku?: string;
+  }>;
   image?: string;
   category?: string;
   rating?: number;
   reviews?: number;
-  // Add any other fields used in your app
 }
 
 interface ProductCardProps {
@@ -29,15 +35,45 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   // Get the correct id
   const productId = product.id || product._id || '';
 
-  // Compute display price and discount
-  const hasDiscount = product.oldPrice && product.oldPrice > product.price;
-  const displayPrice = hasDiscount ? product.newPrice || product.price : product.price;
-  const originalPrice = hasDiscount ? product.oldPrice : product.price;
+  // Helper: get the cheapest available price (consider variants if any)
+  const getCheapestPrice = (): number => {
+    if (product.hasVariants && product.variants && product.variants.length > 0) {
+      const variantPrices = product.variants.map(v => v.price);
+      return Math.min(...variantPrices, product.price);
+    }
+    return product.price;
+  };
+
+  // Helper: get original price (before discount)
+  const getOriginalPrice = (): number => {
+    const cheapest = getCheapestPrice();
+    if (product.oldPrice) return product.oldPrice;
+    if (product.discount && product.discount > 0) {
+      // original = cheapest / (1 - discount/100)
+      return Math.round(cheapest / (1 - product.discount / 100));
+    }
+    return cheapest;
+  };
+
+  const displayPrice = getCheapestPrice();
+  const originalPrice = getOriginalPrice();
+  const hasDiscount = originalPrice > displayPrice;
   const discountPercent = hasDiscount
     ? Math.round(((originalPrice - displayPrice) / originalPrice) * 100)
     : 0;
 
-  // Format price
+  // Check if variants have a price range
+  let hasPriceRange = false;
+  let minVariantPrice = displayPrice;
+  let maxVariantPrice = displayPrice;
+  if (product.hasVariants && product.variants && product.variants.length > 1) {
+    const prices = product.variants.map(v => v.price);
+    minVariantPrice = Math.min(...prices);
+    maxVariantPrice = Math.max(...prices);
+    hasPriceRange = minVariantPrice !== maxVariantPrice;
+  }
+
+  // Format price in Indian Rupees
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -50,11 +86,14 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Convert to the shape expected by your cart context
+
+    // Use the cheapest variant price for cart (or base price)
+    const cartPrice = hasPriceRange ? minVariantPrice : displayPrice;
+
     const cartProduct = {
       id: productId,
       name: product.name,
-      price: product.price,
+      price: cartPrice,
       image: product.image || '',
       category: product.category || '',
     };
@@ -76,9 +115,9 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           <img
             src={product.image || '/placeholder-image.jpg'}
             alt={product.name}
-            className="w-full h-full object-cover transition-opacity duration-500"
+            className="w-full h-full object-cover transition-opacity duration-500 group-hover:scale-105"
           />
-          
+
           {/* Discount badge */}
           {discountPercent > 0 && (
             <span className="absolute top-3 left-3 bg-destructive text-destructive-foreground text-xs font-bold px-2 py-1 rounded">
@@ -102,12 +141,14 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         {/* Content */}
         <div className="p-4">
           {product.category && (
-            <p className="text-xs text-muted-foreground mb-1">{product.category}</p>
+            <p className="text-xs text-muted-foreground mb-1 capitalize">
+              {product.category.replace(/-/g, ' ')}
+            </p>
           )}
           <h3 className="font-semibold text-foreground mb-2 line-clamp-1 group-hover:text-primary transition-colors">
             {product.name}
           </h3>
-          
+
           {/* Rating (only if available) */}
           {showRating && (
             <div className="flex items-center gap-1 mb-2">
@@ -118,16 +159,22 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             </div>
           )}
 
-          {/* Price */}
-          <div className="flex items-center gap-2">
+          {/* Price display */}
+          <div className="flex flex-wrap items-center gap-2">
             {hasDiscount && (
               <span className="text-sm text-muted-foreground line-through">
                 {formatPrice(originalPrice)}
               </span>
             )}
-            <span className="text-lg font-bold text-primary">
-              {formatPrice(displayPrice)}
-            </span>
+            {hasPriceRange ? (
+              <span className="text-lg font-bold text-primary">
+                {formatPrice(minVariantPrice)} – {formatPrice(maxVariantPrice)}
+              </span>
+            ) : (
+              <span className="text-lg font-bold text-primary">
+                {formatPrice(displayPrice)}
+              </span>
+            )}
           </div>
         </div>
       </article>
