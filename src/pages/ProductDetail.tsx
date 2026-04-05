@@ -43,8 +43,8 @@ type ProductDB = {
   shortDescription?: string;
   price: number;
   discount?: number;
-  gst?: number;                 // ✅ ADDED
-  isCustomized?: boolean;       // ✅ ADDED
+  gst?: number;
+  isCustomized?: boolean;
   quantity: number;
   availability: "In Stock" | "Low Stock" | "Out of Stock";
   status: "pending" | "approved" | "rejected";
@@ -67,10 +67,10 @@ type UiProduct = {
   name: string;
   category: string;
   description: string;
-  basePrice: number;           // original product price (without discount)
+  basePrice: number;
   discountPercent: number;
-  gst: number;                 // ✅ ADDED
-  isCustomized: boolean;       // ✅ ADDED
+  gst: number;
+  isCustomized: boolean;
   image: string;
   images: string[];
   colors: string[];
@@ -93,12 +93,6 @@ function formatINR(price: number) {
   }).format(price);
 }
 
-/**
- * Correct discount logic:
- * - Discount applies only to the base product price.
- * - Variant price = basePrice + adjustment (could be positive or negative).
- * - Final price = discountedBasePrice + (variantPrice - basePrice)
- */
 function computeFinalPrice(
   basePrice: number,
   discountPercent: number,
@@ -172,8 +166,8 @@ function mapDbToUiProduct(p: ProductDB): UiProduct {
     description: p.description || p.shortDescription || "",
     basePrice: Number(p.price) || 0,
     discountPercent: Number(p.discount) || 0,
-    gst: Number(p.gst) || 0,               // ✅ ADDED
-    isCustomized: p.isCustomized || false, // ✅ ADDED
+    gst: Number(p.gst) || 0,
+    isCustomized: p.isCustomized || false,
     image: p.image,
     images,
     colors,
@@ -237,7 +231,6 @@ const ProductDetail = () => {
           setProductDb(p);
           setSelectedImage(p.image);
 
-          // Auto-select first available options
           if (p.hasVariants && p.variants) {
             const firstVariant = p.variants[0];
             if (firstVariant) {
@@ -280,7 +273,6 @@ const ProductDetail = () => {
     return match || null;
   }, [uiProduct, selectedColor, selectedSize, selectedFabric]);
 
-  // Compute correct price with discount on base + variant adjustment
   const { originalPrice, finalPrice, discountAmount } = useMemo(() => {
     if (!uiProduct) return { originalPrice: 0, finalPrice: 0, discountAmount: 0 };
     const variantPrice = selectedVariant?.price;
@@ -399,18 +391,17 @@ const ProductDetail = () => {
     if (selectedColor) attributes.color = selectedColor;
     if (selectedFabric) attributes.fabric = selectedFabric;
 
-    // Prepare cart product with correct pricing, GST, and customization flag
     const cartProduct = {
       id: uiProduct._id,
       name: uiProduct.name,
       category: uiProduct.category,
       basePrice: uiProduct.basePrice,
-      price: originalPrice,           // display original price (with variant upcharge)
-      finalPrice: finalPrice,         // discounted price
+      price: originalPrice,
+      finalPrice: finalPrice,
       discountPercent: uiProduct.discountPercent,
       discountAmount: discountAmount,
-      gst: uiProduct.gst,             // ✅ ADDED
-      isCustomized: uiProduct.isCustomized, // ✅ ADDED
+      gst: uiProduct.gst,
+      isCustomized: uiProduct.isCustomized,
       image: uiProduct.image,
       galleryImages: uiProduct.images,
       material: uiProduct.material,
@@ -460,8 +451,8 @@ const ProductDetail = () => {
       finalPrice: finalPrice,
       discountPercent: uiProduct.discountPercent,
       discountAmount: discountAmount,
-      gst: uiProduct.gst,             // ✅ ADDED
-      isCustomized: uiProduct.isCustomized, // ✅ ADDED
+      gst: uiProduct.gst,
+      isCustomized: uiProduct.isCustomized,
       image: uiProduct.image,
       galleryImages: uiProduct.images,
       material: uiProduct.material,
@@ -538,7 +529,6 @@ const ProductDetail = () => {
                       -{uiProduct.discountPercent}%
                     </span>
                   )}
-                  {/* ✅ Customizable Badge */}
                   {uiProduct.isCustomized && (
                     <span className="absolute top-4 right-4 bg-amber-500 text-white text-sm font-bold px-3 py-1 rounded">
                       Customizable
@@ -609,7 +599,10 @@ const ProductDetail = () => {
                   </div>
                 </div>
 
-                <p className="text-[#d6dfbd]">{uiProduct.description}</p>
+                {/* ✅ Description with preserved line breaks */}
+                <div className="text-[#d6dfbd] whitespace-pre-wrap">
+                  {uiProduct.description}
+                </div>
 
                 {/* Color Selection */}
                 {availableColors.length > 0 && (
@@ -750,24 +743,24 @@ const ProductDetail = () => {
                   </div>
                 </div>
 
-               {/* ✅ Customize Button (if customizable) */}
-{uiProduct.isCustomized && (
-  <div>
-    <Button
-      variant="outline"
-      className="w-full border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
-      onClick={() => {
-        const message = `Hi, I'm interested in customizing this product:%0A%0A*Name:* ${encodeURIComponent(uiProduct.name)}%0A*ID:* ${uiProduct._id}%0A%0ACan you please share customization options?`;
-        window.open(`https://wa.me/917075848516?text=${message}`, '_blank');
-      }}
-    >
-      ✨ Customize This Product
-    </Button>
-    <p className="text-xs text-[#d6dfbd] mt-2">
-      Choose size, color, fabric, and add personal touches.
-    </p>
-  </div>
-)}
+                {/* Customize Button */}
+                {uiProduct.isCustomized && (
+                  <div>
+                    <Button
+                      variant="outline"
+                      className="w-full border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+                      onClick={() => {
+                        const message = `Hi, I'm interested in customizing this product:%0A%0A*Name:* ${encodeURIComponent(uiProduct.name)}%0A*ID:* ${uiProduct._id}%0A%0ACan you please share customization options?`;
+                        window.open(`https://wa.me/917075848516?text=${message}`, '_blank');
+                      }}
+                    >
+                      ✨ Customize This Product
+                    </Button>
+                    <p className="text-xs text-[#d6dfbd] mt-2">
+                      Choose size, color, fabric, and add personal touches.
+                    </p>
+                  </div>
+                )}
 
                 {/* Quantity & Actions */}
                 <div className="space-y-4">
