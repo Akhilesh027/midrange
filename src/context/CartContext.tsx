@@ -28,6 +28,7 @@ type StoredCartItem = {
     fabric?: string | null;
   };
   productSnapshot?: CartProduct;
+  variantStock?: number; // ✅ store stock at add time
 };
 
 type BackendProduct = {
@@ -73,6 +74,7 @@ type BackendCartItem = {
     fabric?: string | null;
   };
   productSnapshot?: CartProduct;
+  variantStock?: number; // ✅ expected from backend
 };
 
 export interface CartProduct {
@@ -105,6 +107,7 @@ interface CartItem {
   _id?: string;
   product: CartProduct;
   quantity: number;
+  variantStock?: number; // ✅ added
 }
 
 interface CartContextType {
@@ -284,7 +287,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [stored]);
 
   // ---------- Guest operations (store snapshot) ----------
-  const guestAdd = (cartProduct: CartProduct, qty: number) => {
+  const guestAdd = (cartProduct: CartProduct, qty: number, variantStock?: number) => {
     const addQty = Math.max(1, Number(qty) || 1);
     setStored((prev) => {
       const existing = prev.find(
@@ -296,7 +299,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return prev.map((x) =>
           x.productId === cartProduct.id &&
           (x.variantId || null) === (cartProduct.variantId || null)
-            ? { ...x, quantity: x.quantity + addQty, productSnapshot: cartProduct }
+            ? {
+                ...x,
+                quantity: x.quantity + addQty,
+                productSnapshot: cartProduct,
+                variantStock: variantStock ?? x.variantStock,
+              }
             : x
         );
       }
@@ -308,6 +316,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           quantity: addQty,
           attributes: cartProduct.variantAttributes || {},
           productSnapshot: cartProduct,
+          variantStock,
         },
       ];
     });
@@ -349,10 +358,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ---------- Hydration (from backend or guest storage) ----------
   const refreshCartFromBackend = async () => {
-    // Prevent multiple simultaneous refresh calls
-    if (refreshInProgressRef.current) {
-      return;
-    }
+    if (refreshInProgressRef.current) return;
 
     refreshInProgressRef.current = true;
     setIsHydrating(true);
@@ -365,9 +371,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setItems([]);
           return;
         }
-        
+
         const res = await apiFetch(`${CART_BASE}/${userId}`, { method: "GET" });
-        
+
         if (!res.ok) {
           if (res.status === 404) {
             setItems([]);
@@ -376,7 +382,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           return;
         }
-        
+
         const json = await res.json();
         const backendItems: BackendCartItem[] = json?.data?.items ?? [];
 
@@ -391,6 +397,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             _id: it._id,
             product,
             quantity: Math.max(1, Number(it.quantity) || 1),
+            variantStock: it.variantStock, // ✅ read from backend
           };
         });
 
@@ -411,6 +418,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           _id: getGuestItemId(x.productId, x.variantId),
           product: x.productSnapshot!,
           quantity: x.quantity,
+          variantStock: x.variantStock, // ✅ restore stock
         }));
         setItems(guestItems);
         return;
@@ -430,13 +438,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             _id: getGuestItemId(it.productId, it.variantId),
             product: cartProduct,
             quantity: Math.max(1, Number(it.quantity) || 1),
+            variantStock: variant ? variant.quantity : p.quantity, // ✅ compute stock
           } as CartItem;
         })
       );
-      
+
       const cleaned = results.filter(Boolean) as CartItem[];
       setItems(cleaned);
-      
+
       // update stored with snapshots for future
       setStored(
         cleaned.map((x) => ({
@@ -445,6 +454,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           quantity: x.quantity,
           attributes: x.product.variantAttributes || {},
           productSnapshot: x.product,
+          variantStock: x.variantStock,
         }))
       );
     } catch (err) {
@@ -465,7 +475,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (stored.length > 0) {
       try {
-        // Send full snapshot to backend
         const res = await apiFetch(CART_BASE, {
           method: "PUT",
           body: JSON.stringify({
@@ -475,6 +484,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
               quantity: x.quantity,
               attributes: x.attributes,
               productSnapshot: x.productSnapshot,
+              variantStock: x.variantStock, // ✅ send to backend
             })),
           }),
         });
@@ -514,7 +524,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     const addQty = Math.max(1, Number(qty) || 1);
     let cartProduct: CartProduct;
-    
+
     if (isCartProduct(product)) {
       cartProduct = product;
     } else {
@@ -530,8 +540,27 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       variantAttributes: finalAttributes,
     };
 
+    // ✅ Determine the variant stock at add time
+    let variantStock: number | undefined;
+    if (finalVariantId) {
+      // If the product object (passed or fetched) has variants, extract stock
+      const fullProduct = (product as any).variants ? product : null;
+      if (fullProduct && fullProduct.variants) {
+        const variant = fullProduct.variants.find(
+          (v: any) => String(v._id) === String(finalVariantId)
+        );
+        if (variant) {
+          variantStock = variant.quantity ?? variant.stock;
+        }
+      }
+    }
+    // Fallback to product stockQty if no variant or variant not found
+    if (variantStock === undefined && finalCartProduct.stockQty !== undefined) {
+      variantStock = finalCartProduct.stockQty;
+    }
+
     if (!isLoggedIn()) {
-      guestAdd(finalCartProduct, addQty);
+      guestAdd(finalCartProduct, addQty, variantStock);
       setItems((prev) => {
         const existing = prev.find(
           (x) =>
@@ -542,15 +571,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return prev.map((x) =>
             x.product.id === finalCartProduct.id &&
             (x.product.variantId || null) === (finalVariantId || null)
-              ? { ...x, quantity: x.quantity + addQty }
+              ? { ...x, quantity: x.quantity + addQty, variantStock }
               : x
           );
         }
-        return [...prev, { 
-          _id: getGuestItemId(finalCartProduct.id, finalVariantId),
-          product: finalCartProduct, 
-          quantity: addQty 
-        }];
+        return [
+          ...prev,
+          {
+            _id: getGuestItemId(finalCartProduct.id, finalVariantId),
+            product: finalCartProduct,
+            quantity: addQty,
+            variantStock,
+          },
+        ];
       });
       toast.success(`Added ${finalCartProduct.name} to cart`);
       return;
@@ -565,6 +598,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           quantity: addQty,
           attributes: finalAttributes,
           productSnapshot: finalCartProduct,
+          variantStock, // ✅ send to backend
         }),
       });
 
@@ -597,7 +631,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const res = await apiFetch(`${CART_BASE}/item/${itemId}`, { method: "DELETE" });
-      
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.message || "Failed to remove item");
@@ -613,7 +647,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateQuantity = async (itemId: string, quantity: number) => {
     const q = Math.max(1, Number(quantity));
-    
+
     if (!isLoggedIn()) {
       const [pid, vid] = itemId.split(':');
       guestUpdateQty(pid, vid || null, q);
@@ -644,7 +678,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error("Error updating quantity:", err);
       toast.error(err instanceof Error ? err.message : "Failed to update quantity");
-      // Refresh to revert any optimistic updates
       await refreshCartFromBackend();
     }
   };
@@ -658,7 +691,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const res = await apiFetch(CART_BASE, { method: "DELETE" });
-      
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.message || "Failed to clear cart");
