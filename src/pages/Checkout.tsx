@@ -73,12 +73,19 @@ type CartItem = {
     gst?: number;
     image?: string;
     stock?: number;
+    quantity?: number;      // ✅ API uses 'quantity' for stock
     isCustomized?: boolean;
     variantAttributes?: {
       color?: string;
       size?: string;
       fabric?: string;
     };
+    variants?: Array<{
+      _id: string;
+      price: number;
+      quantity: number;
+      attributes?: any;
+    }>;
   };
   quantity: number;
   productSnapshot?: any;
@@ -87,6 +94,7 @@ type CartItem = {
     size?: string;
     fabric?: string;
   };
+  variantId?: string;       // ✅ To track selected variant
 };
 
 // Utility functions
@@ -228,12 +236,12 @@ export default function Checkout() {
     appliedRule: "",
   });
 
-  // ✅ MOVED: Define selectedAddress before it's used in useMemo and useEffect
+  // ✅ selectedAddress memo
   const selectedAddress = useMemo(() => {
     return addresses.find((a) => a._id === selectedAddressId) || null;
   }, [addresses, selectedAddressId]);
 
-  // ✅ FIXED: Tax calculation on discounted price per item
+  // ✅ Tax calculation on discounted price per item
   const tax = useMemo(() => {
     if (items.length === 0 || totalPrice === 0) return 0;
 
@@ -250,7 +258,6 @@ export default function Checkout() {
 
       if (gstPercent === 0) continue;
 
-      // Calculate item's proportion of the discounted total
       const itemOriginalTotal = itemPrice * qty;
       const itemProportion = itemOriginalTotal / totalPrice;
       const itemDiscountedValue = discountedSubtotal * itemProportion;
@@ -262,7 +269,6 @@ export default function Checkout() {
     return Math.round(totalTax * 100) / 100;
   }, [items, totalPrice, discount]);
 
-  // ✅ FIXED: Final total with correct tax calculation
   const shipping = useMemo(() => {
     return Math.max(0, Number(shippingBase || 0) - Number(shippingDiscount || 0));
   }, [shippingBase, shippingDiscount]);
@@ -319,7 +325,7 @@ export default function Checkout() {
     fetchAddresses();
   }, [step, fetchAddresses]);
 
-  // ✅ FIXED: Debounced shipping calculation
+  // Debounced shipping calculation
   const fetchShippingCost = useCallback(async (params: { city?: string; pincode?: string }) => {
     const city = String(params.city || "").trim();
     const pincode = String(params.pincode || "").trim();
@@ -386,7 +392,6 @@ export default function Checkout() {
     }
   }, []);
 
-  // ✅ FIXED: Debounced shipping calculation with proper dependency
   useEffect(() => {
     if (!selectedAddress?.city) {
       setShippingBase(0);
@@ -399,12 +404,10 @@ export default function Checkout() {
       return;
     }
 
-    // Clear previous timeout
     if (shippingTimeoutRef.current) {
       clearTimeout(shippingTimeoutRef.current);
     }
 
-    // Set new timeout
     shippingTimeoutRef.current = setTimeout(() => {
       fetchShippingCost({
         city: selectedAddress.city,
@@ -419,7 +422,7 @@ export default function Checkout() {
     };
   }, [selectedAddress?.city, selectedAddress?.pincode, fetchShippingCost]);
 
-  // ✅ FIXED: Coupon validation on load
+  // Coupon validation on load
   useEffect(() => {
     const validateSavedCoupon = async () => {
       try {
@@ -432,7 +435,6 @@ export default function Checkout() {
         if (savedCoupon?.code) {
           setValidatingCoupon(true);
           
-          // Validate coupon with backend
           const res = await apiFetch("/midrange/coupons/validate", {
             method: "POST",
             body: JSON.stringify({
@@ -454,7 +456,6 @@ export default function Checkout() {
             setDiscount(Number(parsed?.discount || 0));
             setShippingDiscount(Number(parsed?.shippingDiscount || 0));
           } else {
-            // Clear invalid coupon
             localStorage.removeItem(`${WEBSITE}_coupon`);
             toast.error(`Coupon "${savedCoupon.code}" is no longer valid`);
           }
@@ -477,7 +478,6 @@ export default function Checkout() {
     return true;
   }, [step, selectedAddressId]);
 
-  // ✅ FIXED: Better address validation
   const validateAddressForm = () => {
     if (!addressForm.fullName.trim()) return "Full name is required";
     if (addressForm.fullName.trim().length < 3) return "Full name must be at least 3 characters";
@@ -586,14 +586,27 @@ export default function Checkout() {
     setShowAddressForm(true);
   };
 
-  // ✅ FIXED: Order validation before submission
+  // ✅ FIXED: Stock validation (supports both 'stock' and 'quantity' fields)
   const validateOrder = useCallback(() => {
-    // Check stock availability
     for (const item of items as CartItem[]) {
-      const product = item.product;
-      const stock = product.stock || 0;
-      if (item.quantity > stock) {
-        toast.error(`${product.name} is out of stock. Only ${stock} available.`);
+      const product = item.product || {};
+      // Try to get stock from product.quantity (API uses 'quantity') or product.stock
+      let availableStock = product.quantity ?? product.stock ?? 0;
+
+      // If the item has a specific variant, check variant stock
+      const variantId = (item as any).variantId;
+      if (variantId && product.variants && Array.isArray(product.variants)) {
+        const variant = product.variants.find((v: any) => v._id === variantId);
+        if (variant) {
+          availableStock = variant.quantity ?? variant.stock ?? 0;
+        }
+      }
+
+      const requestedQty = item.quantity || 1;
+      if (requestedQty > availableStock) {
+        toast.error(
+          `${product.name} is out of stock. Only ${availableStock} available.`
+        );
         return false;
       }
     }
@@ -631,11 +644,10 @@ export default function Checkout() {
       });
     } catch (error) {
       console.error("Coupon redemption error:", error);
-      // Don't block order success
     }
   };
 
-  // ✅ FIXED: Secure Razorpay payment with server-side amount verification
+  // Secure Razorpay payment with server-side amount verification
   const startRazorpayPayment = async (): Promise<{
     razorpay_order_id: string;
     razorpay_payment_id: string;
@@ -644,7 +656,6 @@ export default function Checkout() {
     const ok = await loadRazorpay();
     if (!ok) throw new Error("Razorpay SDK failed to load. Please check your internet connection.");
 
-    // Server will recalculate amount based on cart
     const createRes = await apiFetch("/payments/create-order", {
       method: "POST",
       body: JSON.stringify({
@@ -664,7 +675,6 @@ export default function Checkout() {
       throw new Error(createJson?.message || "Failed to create payment order");
     }
 
-    // Verify server-calculated amount matches client
     if (Math.abs(createJson.amount - finalTotal) > 1) {
       throw new Error("Order amount mismatch. Please refresh and try again.");
     }
@@ -807,7 +817,6 @@ export default function Checkout() {
     }
   };
 
-  // ✅ FIXED: Preserve payment method when navigating between steps
   const handleStepChange = (newStep: number) => {
     if (newStep === 2 && !canGoNext) return;
     setStep(newStep);
