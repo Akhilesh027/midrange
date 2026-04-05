@@ -690,7 +690,7 @@ export default function Checkout() {
         order_id: rpOrder.id,
         amount: rpOrder.amount,
         currency: rpOrder.currency,
-        name: "JSGALORE",
+        name: "JSGALLOR",
         description: `Order #${rpOrder.receipt}`,
         prefill: {
           name: user?.name || user?.fullName || selectedAddress?.fullName || "",
