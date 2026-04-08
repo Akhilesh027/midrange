@@ -15,9 +15,10 @@ interface Product {
 interface ProductSliderProps {
   products: Product[];
   autoSlideInterval?: number; // in milliseconds
+  onProductClick?: (product: Product) => void; // 👈 new prop for navigation
 }
 
-export function ProductSlider({ products, autoSlideInterval = 10000 }: ProductSliderProps) {
+export function ProductSlider({ products, autoSlideInterval = 10000, onProductClick }: ProductSliderProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<"left" | "right">("right");
   const [isAnimating, setIsAnimating] = useState(false);
@@ -58,13 +59,15 @@ export function ProductSlider({ products, autoSlideInterval = 10000 }: ProductSl
   };
 
   // Reset interval on manual navigation
-  const handleNext = () => {
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 👈 prevent click from bubbling to image
     stopAutoSlide();
     nextSlide();
     startAutoSlide();
   };
 
-  const handlePrev = () => {
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 👈 prevent click from bubbling to image
     stopAutoSlide();
     prevSlide();
     startAutoSlide();
@@ -95,8 +98,8 @@ export function ProductSlider({ products, autoSlideInterval = 10000 }: ProductSl
   const handleTouchEnd = (e: React.TouchEvent) => {
     const delta = e.changedTouches[0].clientX - touchStartX.current;
     if (Math.abs(delta) > 50) {
-      if (delta > 0) handlePrev();
-      else handleNext();
+      if (delta > 0) handlePrev(e as any);
+      else handleNext(e as any);
     }
   };
 
@@ -110,6 +113,12 @@ export function ProductSlider({ products, autoSlideInterval = 10000 }: ProductSl
 
   const currentProduct = products[currentIndex];
 
+  const handleImageClick = () => {
+    if (onProductClick) {
+      onProductClick(currentProduct);
+    }
+  };
+
   return (
     <div
       className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10"
@@ -118,8 +127,11 @@ export function ProductSlider({ products, autoSlideInterval = 10000 }: ProductSl
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Image with slide animation */}
-      <div className="relative w-full h-[400px] md:h-[500px] overflow-hidden">
+      {/* Image with slide animation – clickable */}
+      <div
+        className="relative w-full h-[400px] md:h-[500px] overflow-hidden cursor-pointer"
+        onClick={handleImageClick}
+      >
         <div
           className={cn(
             "absolute inset-0 flex transition-transform duration-500 ease-out",
@@ -141,11 +153,17 @@ export function ProductSlider({ products, autoSlideInterval = 10000 }: ProductSl
         </div>
       </div>
 
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-[#1d240f]/80 via-[#1d240f]/20 to-transparent" />
+      {/* Gradient overlay – also clickable (but transparent) */}
+      <div
+        className="absolute inset-0 bg-gradient-to-t from-[#1d240f]/80 via-[#1d240f]/20 to-transparent cursor-pointer"
+        onClick={handleImageClick}
+      />
 
-      {/* Product details card */}
-      <div className="absolute bottom-6 left-6 right-6 rounded-2xl bg-[#f7faef]/10 backdrop-blur-md border border-[#f7faef]/20 p-4 shadow-lg">
+      {/* Product details card – also clickable */}
+      <div
+        className="absolute bottom-6 left-6 right-6 rounded-2xl bg-[#f7faef]/10 backdrop-blur-md border border-[#f7faef]/20 p-4 shadow-lg cursor-pointer"
+        onClick={handleImageClick}
+      >
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="text-sm text-[#e0e8c9]/75">Featured Product</p>
@@ -185,7 +203,10 @@ export function ProductSlider({ products, autoSlideInterval = 10000 }: ProductSl
             {products.map((_, idx) => (
               <button
                 key={idx}
-                onClick={() => goToSlide(idx)}
+                onClick={(e) => {
+                  e.stopPropagation(); // 👈 prevent image click
+                  goToSlide(idx);
+                }}
                 className={cn(
                   "w-2 h-2 rounded-full transition-all",
                   idx === currentIndex

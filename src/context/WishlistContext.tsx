@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 
 // ✅ Use the same base and path as your product API
 const API_BASE = import.meta.env.VITE_API_BASE || "https://api.jsgallor.com";
-const WISHLIST_API = `${API_BASE}/api/midrange/wishlist`;   // matches backend routes
+const WISHLIST_API = `${API_BASE}/api/midrange/wishlist`;
 
 export interface Product {
   _id: string;
@@ -101,7 +101,11 @@ export const WishlistProvider = ({ children }: { children: React.ReactNode }) =>
 
   // Add product to wishlist
   const addToWishlist = useCallback(async (product: Product) => {
-    if (!token) throw new Error("Not authenticated");
+    // ✅ Redirect using window.location if not authenticated
+    if (!getToken()) {
+      window.location.href = "/login";  // full page redirect (works without router context)
+      throw new Error("Please log in to add items to your wishlist");
+    }
 
     setError(null);
     const productId = product._id || product.id;
@@ -117,7 +121,7 @@ export const WishlistProvider = ({ children }: { children: React.ReactNode }) =>
       console.error("Failed to add to wishlist:", err);
       throw err;
     }
-  }, [token]);
+  }, []); // no dependencies needed now
 
   // Remove product from wishlist
   const removeFromWishlist = useCallback(async (productId: string) => {

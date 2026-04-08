@@ -288,10 +288,14 @@ export default function Index() {
                     <p className="text-white/60">Loading products...</p>
                   </div>
                 ) : sliderProducts.length > 0 ? (
-                  <Link to={`/product/${sliderProducts[0].id}`} className="block rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-                    <ProductSlider products={sliderProducts} autoSlideInterval={10000} />
-                  </Link>
-                ) : (
+    <ProductSlider
+      products={sliderProducts}
+      autoSlideInterval={10000}
+      onProductClick={(product) => {
+        window.location.href = `/product/${product.id}`;
+      }}
+    />
+  ) : (
                   <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-gray-800 h-[400px] md:h-[500px] flex items-center justify-center">
                     <p className="text-white/60">No products available</p>
                   </div>
