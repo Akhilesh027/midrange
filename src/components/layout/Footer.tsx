@@ -73,21 +73,21 @@ export const Footer = () => {
 
             <div className="flex gap-3 mb-6">
               <a
-                href="#"
+                href="https://www.facebook.com/profile.php?id=61586448690693"
                 className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[#cdbf9e] hover:bg-[#f3deb0] hover:text-[#3f4f22] transition-all"
               >
                 <Facebook className="w-5 h-5" />
               </a>
 
               <a
-                href="#"
+                href="https://www.instagram.com/jsgallor/"
                 className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[#cdbf9e] hover:bg-[#f3deb0] hover:text-[#3f4f22] transition-all"
               >
                 <Instagram className="w-5 h-5" />
               </a>
 
               <a
-                href="#"
+                href="https://www.youtube.com/@JSGALLOR"
                 className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[#cdbf9e] hover:bg-[#f3deb0] hover:text-[#3f4f22] transition-all"
               >
                 <Youtube className="w-5 h-5" />
