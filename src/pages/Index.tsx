@@ -481,8 +481,6 @@ export default function Index() {
     </Layout>
   );
 }
-
-// Helper function used inside fetchCats
 function norm(s?: string) {
   return String(s || "").trim().toLowerCase();
 }
