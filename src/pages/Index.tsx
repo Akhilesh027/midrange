@@ -30,15 +30,14 @@ type ProductDB = {
   shortDescription?: string;
 };
 
+// Updated CartProduct – now includes discount, no pre‑computed final price
 type CartProduct = {
   id: string;
   name: string;
   category: string;
   subcategory?: string;
-  price: number;
-  finalPrice: number;
-  discountPercent: number;
-  discountAmount: number;
+  price: number;          // original price
+  discount: number;       // discount percentage (e.g., 10)
   image: string;
   galleryImages: string[];
   material?: string;
@@ -63,29 +62,15 @@ type ApiCategory = {
 };
 
 const DISCOUNT_PERCENT = 10;
-const norm = (s?: string) => String(s || "").trim().toLowerCase();
-
-function computeDiscount(price: number, percent: number) {
-  const discountAmount = Math.round((Number(price || 0) * percent) / 100);
-  const finalPrice = Number(price || 0) - discountAmount;
-  return { discountAmount, finalPrice };
-}
 
 function mapDbToUI(p: ProductDB): CartProduct {
-  const { discountAmount, finalPrice } = computeDiscount(
-    p.price,
-    DISCOUNT_PERCENT
-  );
-
   return {
     id: p._id,
     name: p.name,
     category: p.category,
     subcategory: p.subcategory,
     price: Number(p.price || 0),
-    finalPrice,
-    discountPercent: DISCOUNT_PERCENT,
-    discountAmount,
+    discount: DISCOUNT_PERCENT,
     image: p.image,
     galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
     material: p.material,
@@ -222,13 +207,17 @@ export default function Index() {
   }, []);
 
   // Prepare slider products from the featured array (first 4)
+  // Compute discounted price for slider display
   const sliderProducts = useMemo(() => {
-    return featured.slice(0, 4).map(p => ({
-      id: p.id,
-      name: p.name,
-      image: p.image,
-      price: { old: p.price, new: p.finalPrice }
-    }));
+    return featured.slice(0, 4).map(p => {
+      const discounted = Math.round(p.price * (1 - p.discount / 100));
+      return {
+        id: p.id,
+        name: p.name,
+        image: p.image,
+        price: { old: p.price, new: discounted }
+      };
+    });
   }, [featured]);
 
   return (
@@ -288,14 +277,14 @@ export default function Index() {
                     <p className="text-white/60">Loading products...</p>
                   </div>
                 ) : sliderProducts.length > 0 ? (
-    <ProductSlider
-      products={sliderProducts}
-      autoSlideInterval={10000}
-      onProductClick={(product) => {
-        window.location.href = `/product/${product.id}`;
-      }}
-    />
-  ) : (
+                  <ProductSlider
+                    products={sliderProducts}
+                    autoSlideInterval={10000}
+                    onProductClick={(product) => {
+                      window.location.href = `/product/${product.id}`;
+                    }}
+                  />
+                ) : (
                   <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-gray-800 h-[400px] md:h-[500px] flex items-center justify-center">
                     <p className="text-white/60">No products available</p>
                   </div>
@@ -488,14 +477,12 @@ export default function Index() {
         </section>
       </div>
 
-      {/* 
-        ✅ Z-INDEX FIX: Ensure PhoneNumberModal appears above header (z-50).
-        If your PhoneNumberModal component does NOT already use a higher z-index,
-        update its root container to use e.g. "z-[100]" or "z-50" if header uses lower.
-        Example inside PhoneNumberModal.tsx:
-          <div className="fixed inset-0 z-[100] flex items-center justify-center ...">
-      */}
       <PhoneNumberModal open={showPhoneModal} onOpenChange={setShowPhoneModal} />
     </Layout>
   );
+}
+
+// Helper function used inside fetchCats
+function norm(s?: string) {
+  return String(s || "").trim().toLowerCase();
 }

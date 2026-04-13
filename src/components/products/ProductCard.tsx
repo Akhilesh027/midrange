@@ -4,76 +4,74 @@ import { useCart } from '@/context/CartContext';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 
-// Extended product type to support both local and API structures
 interface UnifiedProduct {
-  id?: string;           // local product id
-  _id?: string;          // API product id
+  id?: string;
+  _id?: string;
   name: string;
-  price: number;
-  oldPrice?: number;     // local discount support
-  newPrice?: number;     // local discount support
-  discount?: number;     // API discount percentage
-  hasVariants?: boolean;
-  variants?: Array<{
-    price: number;
-    attributes?: any;
-    sku?: string;
-  }>;
+  price?: number;
+  oldPrice?: number;
+  newPrice?: number;
+  discount?: number;
   image?: string;
   category?: string;
   rating?: number;
   reviews?: number;
 }
 
-interface ProductCardProps {
-  product: UnifiedProduct;
-}
+// ----- DISCOUNT PRICE HELPERS WITH SAFE FALLBACKS -----
+const getOldPrice = (product: UnifiedProduct): number | undefined => {
+  // If oldPrice is directly provided
+  if (typeof product.oldPrice === 'number') return product.oldPrice;
+  
+  // Calculate from price and discount if discount exists and > 0
+  if (typeof product.price === 'number' && typeof product.discount === 'number' && product.discount > 0) {
+    const calculated = Math.round(product.price / (1 - product.discount / 100));
+    return calculated;
+  }
+  
+  return undefined;
+};
 
-export const ProductCard = ({ product }: ProductCardProps) => {
+const getNewPrice = (product: UnifiedProduct): number | undefined => {
+  // If newPrice is directly provided
+  if (typeof product.newPrice === 'number') return product.newPrice;
+  
+  // Otherwise use price
+  if (typeof product.price === 'number') return product.price;
+  
+  // No price available
+  return undefined;
+};
+
+const getDiscountPercent = (product: UnifiedProduct): number => {
+  // If discount is directly provided
+  if (typeof product.discount === 'number') return product.discount;
+  
+  // Calculate from old/new price difference
+  const oldP = getOldPrice(product);
+  const newP = getNewPrice(product);
+  if (oldP && newP && oldP > newP) {
+    return Math.round(((oldP - newP) / oldP) * 100);
+  }
+  
+  return 0;
+};
+
+export const ProductCard = ({ product }: { product: UnifiedProduct }) => {
   const { addToCart } = useCart();
 
-  // Get the correct id
+  // Debug log to see incoming product
+  console.log('ProductCard received:', product);
+
   const productId = product.id || product._id || '';
+  const newPrice = getNewPrice(product);
+  const oldPrice = getOldPrice(product);
+  const discountPercent = getDiscountPercent(product);
+  const hasDiscount = discountPercent > 0 && oldPrice !== undefined && oldPrice > (newPrice || 0);
 
-  // Helper: get the cheapest available price (consider variants if any)
-  const getCheapestPrice = (): number => {
-    if (product.hasVariants && product.variants && product.variants.length > 0) {
-      const variantPrices = product.variants.map(v => v.price);
-      return Math.min(...variantPrices, product.price);
-    }
-    return product.price;
-  };
+  // Debug logs for prices
+  console.log('Prices - newPrice:', newPrice, 'oldPrice:', oldPrice, 'discount%:', discountPercent);
 
-  // Helper: get original price (before discount)
-  const getOriginalPrice = (): number => {
-    const cheapest = getCheapestPrice();
-    if (product.oldPrice) return product.oldPrice;
-    if (product.discount && product.discount > 0) {
-      // original = cheapest / (1 - discount/100)
-      return Math.round(cheapest / (1 - product.discount / 100));
-    }
-    return cheapest;
-  };
-
-  const displayPrice = getCheapestPrice();
-  const originalPrice = getOriginalPrice();
-  const hasDiscount = originalPrice > displayPrice;
-  const discountPercent = hasDiscount
-    ? Math.round(((originalPrice - displayPrice) / originalPrice) * 100)
-    : 0;
-
-  // Check if variants have a price range
-  let hasPriceRange = false;
-  let minVariantPrice = displayPrice;
-  let maxVariantPrice = displayPrice;
-  if (product.hasVariants && product.variants && product.variants.length > 1) {
-    const prices = product.variants.map(v => v.price);
-    minVariantPrice = Math.min(...prices);
-    maxVariantPrice = Math.max(...prices);
-    hasPriceRange = minVariantPrice !== maxVariantPrice;
-  }
-
-  // Format price in Indian Rupees
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -82,35 +80,40 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     }).format(price);
   };
 
-  // Add to cart handler
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Use the cheapest variant price for cart (or base price)
-    const cartPrice = hasPriceRange ? minVariantPrice : displayPrice;
+    if (!newPrice || newPrice <= 0) {
+      toast({
+        title: "Cannot add",
+        description: "Price information is missing.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    const cartProduct = {
+    addToCart({
       id: productId,
       name: product.name,
-      price: cartPrice,
+      price: newPrice,
       image: product.image || '',
       category: product.category || '',
-    };
-    addToCart(cartProduct);
+    });
     toast({
       title: "Added to cart",
       description: `${product.name} has been added to your cart.`,
     });
   };
 
-  // Rating display (optional)
   const showRating = product.rating && product.reviews;
+
+  // If no price at all, show a placeholder
+  const showPriceMissing = newPrice === undefined || newPrice === null;
 
   return (
     <Link to={`/product/${productId}`} className="block group">
       <article className="product-card overflow-hidden">
-        {/* Image container */}
         <div className="relative aspect-square overflow-hidden bg-muted">
           <img
             src={product.image || '/placeholder-image.jpg'}
@@ -118,27 +121,25 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             className="w-full h-full object-cover transition-opacity duration-500 group-hover:scale-105"
           />
 
-          {/* Discount badge */}
-          {discountPercent > 0 && (
+          {hasDiscount && discountPercent > 0 && (
             <span className="absolute top-3 left-3 bg-destructive text-destructive-foreground text-xs font-bold px-2 py-1 rounded">
               -{discountPercent}%
             </span>
           )}
 
-          {/* Quick add button */}
           <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
             <Button
               onClick={handleAddToCart}
               size="icon"
               variant="gold"
               className="rounded-full w-10 h-10"
+              disabled={showPriceMissing}
             >
               <ShoppingCart className="w-4 h-4" />
             </Button>
           </div>
         </div>
 
-        {/* Content */}
         <div className="p-4">
           {product.category && (
             <p className="text-xs text-muted-foreground mb-1 capitalize">
@@ -149,7 +150,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             {product.name}
           </h3>
 
-          {/* Rating (only if available) */}
           {showRating && (
             <div className="flex items-center gap-1 mb-2">
               <Star className="w-3.5 h-3.5 fill-primary text-primary" />
@@ -159,21 +159,21 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             </div>
           )}
 
-          {/* Price display */}
+          {/* PRICE SECTION - Always rendered, shows fallback if no price */}
           <div className="flex flex-wrap items-center gap-2">
-            {hasDiscount && (
-              <span className="text-sm text-muted-foreground line-through">
-                {formatPrice(originalPrice)}
-              </span>
-            )}
-            {hasPriceRange ? (
-              <span className="text-lg font-bold text-primary">
-                {formatPrice(minVariantPrice)} – {formatPrice(maxVariantPrice)}
-              </span>
+            {showPriceMissing ? (
+              <span className="text-sm text-muted-foreground">Price on request</span>
             ) : (
-              <span className="text-lg font-bold text-primary">
-                {formatPrice(displayPrice)}
-              </span>
+              <>
+                {hasDiscount && oldPrice && (
+                  <span className="text-sm text-muted-foreground line-through">
+                    {formatPrice(oldPrice)}
+                  </span>
+                )}
+                <span className="text-lg font-bold text-primary">
+                  {formatPrice(newPrice!)}
+                </span>
+              </>
             )}
           </div>
         </div>
