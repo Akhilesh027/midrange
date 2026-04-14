@@ -13,6 +13,8 @@ import {
   Star,
   Loader2,
   Heart,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useState, useRef, useEffect, useMemo, FormEvent } from "react";
 import { useCart } from "@/context/CartContext";
@@ -43,6 +45,7 @@ export const Header = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   // Location state
   const [location, setLocation] = useState<{
@@ -60,6 +63,19 @@ export const Header = () => {
   const locationObj = useLocation();
   const navigate = useNavigate();
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Toggle category expansion in mobile menu
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) {
+        next.delete(categoryId);
+      } else {
+        next.add(categoryId);
+      }
+      return next;
+    });
+  };
 
   // Search handler – closes mobile search drawer after submit
   const handleSearch = (e: FormEvent) => {
@@ -547,7 +563,7 @@ export const Header = () => {
         )}
       </div>
 
-      {/* FULL SCREEN MOBILE MENU with solid background */}
+      {/* FULL SCREEN MOBILE MENU with accordion categories */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
@@ -566,7 +582,7 @@ export const Header = () => {
               </div>
 
               <div className="flex-1 flex flex-col justify-center space-y-8 py-8">
-                {/* Categories */}
+                {/* Categories - Accordion Style */}
                 <div>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-[#cdbf9e] mb-4 text-center">
                     Categories
@@ -576,26 +592,42 @@ export const Header = () => {
                   ) : parents.length === 0 ? (
                     <div className="text-sm text-[#cdbf9e] text-center">No categories</div>
                   ) : (
-                    <ul className="space-y-3 text-center">
+                    <ul className="space-y-1 text-left">
                       {parents.map((parent) => {
                         const children = childrenByParent.get(String(parent.id)) || [];
+                        const isExpanded = expandedCategories.has(parent.id);
                         return (
-                          <li key={parent.id}>
-                            <Link
-                              to={parentHref(parent.slug)}
-                              onClick={() => setIsMobileMenuOpen(false)}
-                              className="block py-2 text-lg font-medium text-[#f7ecd7] hover:text-[#ffe8b3] transition-colors"
-                            >
-                              {parent.name}
-                            </Link>
-                            {children.length > 0 && (
-                              <ul className="mt-2 space-y-1">
+                          <li key={parent.id} className="border-b border-white/5 last:border-0">
+                            <div className="flex items-center">
+                              <Link
+                                to={parentHref(parent.slug)}
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className="flex-1 py-3 text-lg font-medium text-[#f7ecd7] hover:text-[#ffe8b3] transition-colors"
+                              >
+                                {parent.name}
+                              </Link>
+                              {children.length > 0 && (
+                                <button
+                                  onClick={() => toggleCategory(parent.id)}
+                                  className="p-2 text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors"
+                                  aria-label={isExpanded ? "Collapse" : "Expand"}
+                                >
+                                  {isExpanded ? (
+                                    <ChevronDown className="w-5 h-5" />
+                                  ) : (
+                                    <ChevronRight className="w-5 h-5" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                            {children.length > 0 && isExpanded && (
+                              <ul className="pl-4 pb-2 space-y-1">
                                 {children.map((child) => (
                                   <li key={child.id}>
                                     <Link
                                       to={childHref(parent.slug, child.slug)}
                                       onClick={() => setIsMobileMenuOpen(false)}
-                                      className="block py-1 text-sm text-[#cdbf9e] hover:text-[#ffe8b3]"
+                                      className="block py-2 text-base text-[#cdbf9e] hover:text-[#ffe8b3] transition-colors"
                                     >
                                       {child.name}
                                     </Link>
