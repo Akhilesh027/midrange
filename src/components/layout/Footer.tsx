@@ -97,7 +97,7 @@ export const Footer = () => {
             {/* Contact Info */}
             <p className="text-[#cdbf9e] text-sm leading-relaxed mb-4">
               support@jsgallor.com <br />
-              +91 98765 43210
+              +91 7075848516
             </p>
 
             {/* Locations ✅ */}
