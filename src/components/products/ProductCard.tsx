@@ -8,50 +8,56 @@ interface UnifiedProduct {
   id?: string;
   _id?: string;
   name: string;
-  price?: number;
-  oldPrice?: number;
-  newPrice?: number;
-  discount?: number;
+  price?: number;        // original price (before discount)
+  oldPrice?: number;     // optional explicit original price
+  newPrice?: number;     // optional explicit discounted price
+  discount?: number;     // discount percentage (0-100)
   image?: string;
   category?: string;
   rating?: number;
   reviews?: number;
 }
 
-// ----- DISCOUNT PRICE HELPERS WITH SAFE FALLBACKS -----
-const getOldPrice = (product: UnifiedProduct): number | undefined => {
-  // If oldPrice is directly provided
-  if (typeof product.oldPrice === 'number') return product.oldPrice;
+// ----- CORRECTED DISCOUNT PRICE HELPERS -----
+// Returns the current (discounted) price
+const getDiscountedPrice = (product: UnifiedProduct): number | undefined => {
+  // If newPrice is explicitly provided, use it
+  if (typeof product.newPrice === 'number') return product.newPrice;
   
-  // Calculate from price and discount if discount exists and > 0
-  if (typeof product.price === 'number' && typeof product.discount === 'number' && product.discount > 0) {
-    const calculated = Math.round(product.price / (1 - product.discount / 100));
-    return calculated;
+  // Otherwise, use price and apply discount if present
+  if (typeof product.price === 'number') {
+    const discount = product.discount ?? 0;
+    if (discount > 0) {
+      // Apply discount to original price
+      return Math.round(product.price * (1 - discount / 100) * 100) / 100;
+    }
+    return product.price;
   }
   
   return undefined;
 };
 
-const getNewPrice = (product: UnifiedProduct): number | undefined => {
-  // If newPrice is directly provided
-  if (typeof product.newPrice === 'number') return product.newPrice;
+// Returns the original price (before discount)
+const getOriginalPrice = (product: UnifiedProduct): number | undefined => {
+  // If oldPrice is explicitly provided, use it
+  if (typeof product.oldPrice === 'number') return product.oldPrice;
   
-  // Otherwise use price
+  // Otherwise, price is the original
   if (typeof product.price === 'number') return product.price;
   
-  // No price available
   return undefined;
 };
 
+// Returns discount percentage (either from product.discount or calculated)
 const getDiscountPercent = (product: UnifiedProduct): number => {
-  // If discount is directly provided
+  // If discount is directly provided, use it
   if (typeof product.discount === 'number') return product.discount;
   
-  // Calculate from old/new price difference
-  const oldP = getOldPrice(product);
-  const newP = getNewPrice(product);
-  if (oldP && newP && oldP > newP) {
-    return Math.round(((oldP - newP) / oldP) * 100);
+  // Calculate from original and discounted prices
+  const original = getOriginalPrice(product);
+  const discounted = getDiscountedPrice(product);
+  if (original && discounted && original > discounted) {
+    return Math.round(((original - discounted) / original) * 100);
   }
   
   return 0;
@@ -60,17 +66,11 @@ const getDiscountPercent = (product: UnifiedProduct): number => {
 export const ProductCard = ({ product }: { product: UnifiedProduct }) => {
   const { addToCart } = useCart();
 
-  // Debug log to see incoming product
-  console.log('ProductCard received:', product);
-
   const productId = product.id || product._id || '';
-  const newPrice = getNewPrice(product);
-  const oldPrice = getOldPrice(product);
+  const newPrice = getDiscountedPrice(product);
+  const oldPrice = getOriginalPrice(product);
   const discountPercent = getDiscountPercent(product);
   const hasDiscount = discountPercent > 0 && oldPrice !== undefined && oldPrice > (newPrice || 0);
-
-  // Debug logs for prices
-  console.log('Prices - newPrice:', newPrice, 'oldPrice:', oldPrice, 'discount%:', discountPercent);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -107,8 +107,6 @@ export const ProductCard = ({ product }: { product: UnifiedProduct }) => {
   };
 
   const showRating = product.rating && product.reviews;
-
-  // If no price at all, show a placeholder
   const showPriceMissing = newPrice === undefined || newPrice === null;
 
   return (
@@ -159,7 +157,6 @@ export const ProductCard = ({ product }: { product: UnifiedProduct }) => {
             </div>
           )}
 
-          {/* PRICE SECTION - Always rendered, shows fallback if no price */}
           <div className="flex flex-wrap items-center gap-2">
             {showPriceMissing ? (
               <span className="text-sm text-muted-foreground">Price on request</span>

@@ -97,7 +97,7 @@ const Cart = () => {
   const [shippingDiscount, setShippingDiscount] = useState(0);
 
   // ✅ Dynamic shipping based on subtotal (after discount)
-  const shippingBase = totalPrice > 10000 ? 0 : 499;
+  const shippingBase = totalPrice > 10000 ? 0 : 0;
   const shipping = Math.max(0, shippingBase - shippingDiscount);
 
   // ✅ Dynamic GST: sum of (item.finalPrice * quantity * gst%) for each item
