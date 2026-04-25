@@ -8,6 +8,7 @@
 // ✅ ALL FRONTEND VALIDATION REMOVED (stock, address, total, form)
 // ✅ FIXED: No oversizing on any screen size (down to 280px)
 // ✅ FIXED: Long product names wrap properly, don't overflow or get truncated
+// ✅ NEW: Shows product discount and subtotal after product discount in order summary
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -74,6 +75,7 @@ type CartItem = {
     name: string;
     price: number;
     finalPrice?: number;
+    originalPrice?: number;
     gst?: number;
     image?: string;
     stockQty?: number;
@@ -83,6 +85,15 @@ type CartItem = {
       size?: string;
       fabric?: string;
     };
+  };
+  productSnapshot?: {
+    originalPrice?: number;
+    price?: number;
+    finalPrice?: number;
+    gst?: number;
+    name?: string;
+    image?: string;
+    category?: string;
   };
   quantity: number;
   variantId?: string;
@@ -238,28 +249,54 @@ export default function Checkout() {
     return addresses.find((a) => a._id === selectedAddressId) || null;
   }, [addresses, selectedAddressId]);
 
-  // Tax calculation on discounted price per item
+  // ------------------------------------------------------------
+  // NEW: Compute original subtotal (before product discounts)
+  // and product discount total
+  // ------------------------------------------------------------
+  const { originalSubtotal, productDiscountTotal } = useMemo(() => {
+    let original = 0;
+    let discounted = 0;
+
+    for (const item of items) {
+      const qty = item.quantity || 1;
+      // Try to get original price from product or productSnapshot
+      const originalPrice =
+        item.product?.originalPrice ??
+        item.productSnapshot?.originalPrice ??
+        item.product?.price ?? // fallback to same as discounted if not available
+        0;
+      const finalPrice = item.product?.finalPrice ?? item.productSnapshot?.finalPrice ?? item.product?.price ?? 0;
+
+      original += originalPrice * qty;
+      discounted += finalPrice * qty;
+    }
+
+    return {
+      originalSubtotal: original,
+      productDiscountTotal: Math.max(0, original - discounted),
+    };
+  }, [items]);
+
+  // Tax calculation on discounted price after product & coupon discount
   const tax = useMemo(() => {
     if (items.length === 0 || totalPrice === 0) return 0;
 
+    // Discounted subtotal after product discount (totalPrice) minus coupon discount
+    const discountedAfterCoupon = Math.max(0, totalPrice - discount);
+    if (discountedAfterCoupon === 0) return 0;
+
     let totalTax = 0;
-    const discountedSubtotal = Math.max(0, totalPrice - discount);
-
-    if (discountedSubtotal === 0) return 0;
-
     for (const item of items) {
       const product = item.product || {};
       const qty = item.quantity || 1;
       const itemPrice = product.finalPrice || product.price || 0;
-      const gstPercent = product.gst || 0;
-
+      const gstPercent = product.gst || item.productSnapshot?.gst || 0;
       if (gstPercent === 0) continue;
 
       const itemOriginalTotal = itemPrice * qty;
       const itemProportion = itemOriginalTotal / totalPrice;
-      const itemDiscountedValue = discountedSubtotal * itemProportion;
+      const itemDiscountedValue = discountedAfterCoupon * itemProportion;
       const itemTax = itemDiscountedValue * (gstPercent / 100);
-
       totalTax += itemTax;
     }
 
@@ -271,8 +308,8 @@ export default function Checkout() {
   }, [shippingBase, shippingDiscount]);
 
   const finalTotal = useMemo(() => {
-    const discountedSubtotal = Math.max(0, totalPrice - discount);
-    return Math.max(0, discountedSubtotal + shipping + tax);
+    const discountedAfterCoupon = Math.max(0, totalPrice - discount);
+    return Math.max(0, discountedAfterCoupon + shipping + tax);
   }, [totalPrice, discount, shipping, tax]);
 
   // Authentication check
@@ -566,8 +603,6 @@ export default function Checkout() {
 
   // NO ORDER VALIDATION – always proceed
   const handlePlaceOrder = async () => {
-    // No validation whatsoever – directly place order
-    // Only check shipping loading (UX, not validation)
     if (shippingLoading) {
       toast.error("Please wait, shipping is being calculated");
       return;
@@ -604,13 +639,16 @@ export default function Checkout() {
               : { status: "pending" },
 
           pricing: {
-            subtotal: Number(totalPrice) || 0,
-            discount: Number(discount) || 0,
+            originalSubtotal,
+            productDiscount: productDiscountTotal,
+            subtotalAfterProduct: totalPrice,
+            couponDiscount: discount,
+            subtotalAfterCoupon: Math.max(0, totalPrice - discount),
             shippingCost: Number(shippingBase) || 0,
             shippingDiscount: Number(shippingDiscount) || 0,
-            shippingFinal: Number(shipping) || 0,
-            tax: Number(tax) || 0,
-            total: Number(finalTotal) || 0,
+            shippingFinal: shipping,
+            tax,
+            total: finalTotal,
           },
 
           shipping: {
@@ -693,7 +731,6 @@ export default function Checkout() {
       throw new Error(createJson?.message || "Failed to create payment order");
     }
 
-    // Server must return amount in paise
     const serverAmountPaise = createJson.amount;
     const expectedPaise = Math.round(amountInRupees * 100);
     if (Math.abs(serverAmountPaise - expectedPaise) > 1) {
@@ -765,7 +802,6 @@ export default function Checkout() {
 
   return (
     <Layout>
-      {/* Added overflow-x-hidden to prevent horizontal scroll */}
       <div className="min-h-screen bg-[#556b2f] text-[#f4f7ec] overflow-x-hidden">
         <nav className="bg-[#4b5e29] py-3 border-b border-white/10">
           <div className="container mx-auto px-4">
@@ -880,7 +916,6 @@ export default function Checkout() {
                               : "border-white/10 hover:bg-white/10"
                           }`}
                         >
-                          {/* FIX: Always flex-row, never stack on mobile */}
                           <div className="flex flex-row items-start gap-3">
                             <input
                               type="radio"
@@ -938,7 +973,6 @@ export default function Checkout() {
                         <div className="flex items-start gap-2 min-w-0">
                           <Truck className="w-4 h-4 mt-0.5 text-[#d6dfbd] flex-shrink-0" />
                           <div className="min-w-0">
-                            {/* FIX: responsive font size for shipping label */}
                             <p className="font-medium text-sm sm:text-base text-[#f4f7ec]">
                               Shipping for selected address
                             </p>
@@ -1099,24 +1133,24 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* Order Summary Sidebar - Responsive: becomes full width on mobile */}
+            {/* Order Summary Sidebar - Responsive */}
             <div className="lg:col-span-1">
               <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-4 md:p-6 lg:sticky lg:top-24">
                 <h2 className="text-lg font-semibold text-[#f4f7ec] mb-4">Order Summary</h2>
 
-                {/* Order Items - Responsive images and long product names */}
+                {/* Order Items */}
                 <div className="space-y-4 mb-5 max-h-96 overflow-y-auto pr-1">
                   {(items as CartItem[]).map((item: CartItem) => {
                     const qty = item.quantity || 1;
                     const product = item.product || {};
-                    const price = product.finalPrice || product.price || 0;
-                    const name = product.name || "Product";
-                    const image = product.image || "";
+                    const snapshot = item.productSnapshot || {};
+                    const finalPrice = product.finalPrice ?? snapshot.finalPrice ?? product.price ?? 0;
+                    const name = product.name || snapshot.name || "Product";
+                    const image = product.image || snapshot.image || "";
                     const variantAttributes = product.variantAttributes || item.attributes || {};
 
                     return (
                       <div key={item._id || `${item.productId}-${Date.now()}`} className="flex gap-3 items-start">
-                        {/* FIX: smaller image on mobile */}
                         <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-lg overflow-hidden border border-white/10 bg-white/5 flex-shrink-0">
                           {image ? (
                             <img src={image} alt={name} className="w-full h-full object-cover" />
@@ -1128,7 +1162,6 @@ export default function Checkout() {
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          {/* FIX: product name uses break-words to wrap long names instead of truncating */}
                           <p className="text-sm font-semibold text-[#f4f7ec] break-words">
                             {name}
                           </p>
@@ -1160,7 +1193,7 @@ export default function Checkout() {
                           <div className="flex items-center justify-between mt-1 flex-wrap gap-1">
                             <span className="text-xs text-[#d6dfbd]">Qty: {qty}</span>
                             <span className="text-sm font-semibold text-[#f4f7ec]">
-                              {formatPrice(price * qty)}
+                              {formatPrice(finalPrice * qty)}
                             </span>
                           </div>
 
@@ -1175,13 +1208,29 @@ export default function Checkout() {
                   })}
                 </div>
 
-                {/* Price Breakdown */}
+                {/* Price Breakdown with Product Discount */}
                 <div className="space-y-3 mb-4">
+                  {/* 1. Original Subtotal */}
                   <div className="flex justify-between text-sm">
-                    <span className="text-[#d6dfbd]">Subtotal</span>
+                    <span className="text-[#d6dfbd]">Subtotal (Original)</span>
+                    <span className="text-[#f4f7ec]">{formatPrice(originalSubtotal)}</span>
+                  </div>
+
+                  {/* 2. Product Discount (if any) */}
+                  {productDiscountTotal > 0 && (
+                    <div className="flex justify-between text-sm text-green-300">
+                      <span>Product Discount</span>
+                      <span>-{formatPrice(productDiscountTotal)}</span>
+                    </div>
+                  )}
+
+                  {/* 3. Subtotal after product discount */}
+                  <div className="flex justify-between text-sm font-semibold pt-1">
+                    <span className="text-[#d6dfbd]">Subtotal after product discount</span>
                     <span className="text-[#f4f7ec]">{formatPrice(totalPrice)}</span>
                   </div>
 
+                  {/* 4. Coupon Discount (if any) */}
                   {discount > 0 && (
                     <div className="flex justify-between text-sm text-green-300">
                       <span>Coupon Discount</span>
@@ -1189,6 +1238,13 @@ export default function Checkout() {
                     </div>
                   )}
 
+                  {/* 5. GST (calculated on discounted after product & coupon) */}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#d6dfbd]">GST (on discounted price)</span>
+                    <span className="text-[#f4f7ec]">{formatPrice(tax)}</span>
+                  </div>
+
+                  {/* 6. Shipping */}
                   <div className="flex justify-between text-sm">
                     <span className="text-[#d6dfbd]">Shipping</span>
                     <span className="text-[#f4f7ec]">
@@ -1208,11 +1264,6 @@ export default function Checkout() {
                       <span>-{formatPrice(shippingDiscount)}</span>
                     </div>
                   )}
-
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#d6dfbd]">GST (included)</span>
-                    <span className="text-[#f4f7ec]">{formatPrice(tax)}</span>
-                  </div>
 
                   {appliedCoupon?.code && (
                     <div className="text-xs text-[#d6dfbd] pt-2 border-t border-white/10 break-words">
@@ -1247,7 +1298,7 @@ export default function Checkout() {
         </div>
       </div>
 
-      {/* Address Form Modal - Responsive: fits small screens */}
+      {/* Address Form Modal - Responsive */}
       {showAddressForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 overflow-y-auto">
           <div
@@ -1257,7 +1308,6 @@ export default function Checkout() {
               setEditingAddress(null);
             }}
           />
-          {/* FIX: modal width capped at 95% on mobile, max-w-lg on larger */}
           <div className="relative w-full max-w-[95%] md:max-w-lg my-4 md:my-8">
             <div className="bg-[#4b5e29] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
               <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
@@ -1280,7 +1330,6 @@ export default function Checkout() {
                 </button>
               </div>
 
-              {/* FIX: added overflow-x-auto to prevent any horizontal scroll inside modal */}
               <div className="p-5 overflow-x-auto">
                 <div className="grid grid-cols-1 gap-3">
                   <Input
