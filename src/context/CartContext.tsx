@@ -28,7 +28,7 @@ type StoredCartItem = {
     fabric?: string | null;
   };
   productSnapshot?: CartProduct;
-  variantStock?: number; // ✅ store stock at add time
+  variantStock?: number;
 };
 
 type BackendProduct = {
@@ -74,7 +74,7 @@ type BackendCartItem = {
     fabric?: string | null;
   };
   productSnapshot?: CartProduct;
-  variantStock?: number; // ✅ expected from backend
+  variantStock?: number;
 };
 
 export interface CartProduct {
@@ -107,7 +107,7 @@ interface CartItem {
   _id?: string;
   product: CartProduct;
   quantity: number;
-  variantStock?: number; // ✅ added
+  variantStock?: number;
 }
 
 interface CartContextType {
@@ -147,6 +147,16 @@ function getSavedUserId(): string | null {
 
 function isLoggedIn(): boolean {
   return !!getToken() && !!getSavedUserId();
+}
+
+// Redirect helper with toast
+function requireAuthAndRedirect(): boolean {
+  if (!isLoggedIn()) {
+    toast.error("Please login to continue");
+    window.location.href = "/login";
+    return false;
+  }
+  return true;
 }
 
 function computeDiscount(price: number, percent: number) {
@@ -279,14 +289,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const didMergeRef = useRef(false);
   const refreshInProgressRef = useRef(false);
 
-  // Persist guest cart (with full snapshot)
+  // Persist guest cart (with full snapshot) – but we now force login, so guest cart is disabled.
+  // We keep the logic but will never use it because all actions require login.
   useEffect(() => {
     if (!isLoggedIn() && stored.length > 0) {
       localStorage.setItem(LS_GUEST_CART_KEY, JSON.stringify(stored));
     }
   }, [stored]);
 
-  // ---------- Guest operations (store snapshot) ----------
+  // ---------- Guest operations (kept for potential fallback but not used) ----------
   const guestAdd = (cartProduct: CartProduct, qty: number, variantStock?: number) => {
     const addQty = Math.max(1, Number(qty) || 1);
     setStored((prev) => {
@@ -351,12 +362,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem(LS_GUEST_CART_KEY);
   };
 
-  // Helper to generate consistent item ID for guest carts
   const getGuestItemId = (productId: string, variantId?: string | null): string => {
     return variantId ? `${productId}:${variantId}` : productId;
   };
 
-  // ---------- Hydration (from backend or guest storage) ----------
+  // ---------- Hydration (now only for logged-in users) ----------
   const refreshCartFromBackend = async () => {
     if (refreshInProgressRef.current) return;
 
@@ -365,98 +375,47 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
 
     try {
-      if (isLoggedIn()) {
-        const userId = getSavedUserId();
-        if (!userId) {
-          setItems([]);
-          return;
-        }
-
-        const res = await apiFetch(`${CART_BASE}/${userId}`, { method: "GET" });
-
-        if (!res.ok) {
-          if (res.status === 404) {
-            setItems([]);
-          } else {
-            throw new Error(`Failed to fetch cart: ${res.status}`);
-          }
-          return;
-        }
-
-        const json = await res.json();
-        const backendItems: BackendCartItem[] = json?.data?.items ?? [];
-
-        const mapped: CartItem[] = backendItems.map((it) => {
-          let product: CartProduct;
-          if (it.productSnapshot) {
-            product = it.productSnapshot as CartProduct;
-          } else {
-            product = mapBackendProductToCartProduct(it.product, it.variant);
-          }
-          return {
-            _id: it._id,
-            product,
-            quantity: Math.max(1, Number(it.quantity) || 1),
-            variantStock: it.variantStock, // ✅ read from backend
-          };
-        });
-
-        setItems(mapped);
-        return;
-      }
-
-      // Guest: restore from stored snapshots
-      if (stored.length === 0) {
+      if (!isLoggedIn()) {
         setItems([]);
         return;
       }
 
-      // If stored items have productSnapshot, use them directly
-      const hasAllSnapshots = stored.every((x) => x.productSnapshot);
-      if (hasAllSnapshots) {
-        const guestItems: CartItem[] = stored.map((x) => ({
-          _id: getGuestItemId(x.productId, x.variantId),
-          product: x.productSnapshot!,
-          quantity: x.quantity,
-          variantStock: x.variantStock, // ✅ restore stock
-        }));
-        setItems(guestItems);
+      const userId = getSavedUserId();
+      if (!userId) {
+        setItems([]);
         return;
       }
 
-      // Fallback: fetch each product from API (legacy)
-      const results = await Promise.all(
-        stored.map(async (it) => {
-          const p = await fetchMidrangeProductById(it.productId);
-          if (!p) return null;
-          let variant = null;
-          if (it.variantId && p.variants) {
-            variant = p.variants.find((v) => String(v._id) === String(it.variantId));
-          }
-          const cartProduct = mapBackendProductToCartProduct(p, variant);
-          return {
-            _id: getGuestItemId(it.productId, it.variantId),
-            product: cartProduct,
-            quantity: Math.max(1, Number(it.quantity) || 1),
-            variantStock: variant ? variant.quantity : p.quantity, // ✅ compute stock
-          } as CartItem;
-        })
-      );
+      const res = await apiFetch(`${CART_BASE}/${userId}`, { method: "GET" });
 
-      const cleaned = results.filter(Boolean) as CartItem[];
-      setItems(cleaned);
+      if (!res.ok) {
+        if (res.status === 404) {
+          setItems([]);
+        } else {
+          throw new Error(`Failed to fetch cart: ${res.status}`);
+        }
+        return;
+      }
 
-      // update stored with snapshots for future
-      setStored(
-        cleaned.map((x) => ({
-          productId: x.product.id,
-          variantId: x.product.variantId,
-          quantity: x.quantity,
-          attributes: x.product.variantAttributes || {},
-          productSnapshot: x.product,
-          variantStock: x.variantStock,
-        }))
-      );
+      const json = await res.json();
+      const backendItems: BackendCartItem[] = json?.data?.items ?? [];
+
+      const mapped: CartItem[] = backendItems.map((it) => {
+        let product: CartProduct;
+        if (it.productSnapshot) {
+          product = it.productSnapshot as CartProduct;
+        } else {
+          product = mapBackendProductToCartProduct(it.product, it.variant);
+        }
+        return {
+          _id: it._id,
+          product,
+          quantity: Math.max(1, Number(it.quantity) || 1),
+          variantStock: it.variantStock,
+        };
+      });
+
+      setItems(mapped);
     } catch (err) {
       console.error("Error refreshing cart:", err);
       setError(err instanceof Error ? err.message : "Failed to load cart");
@@ -467,7 +426,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Merge guest → backend after login
+  // Merge guest → backend after login (keep for when user logs in)
   const mergeGuestToBackendIfNeeded = async () => {
     if (!isLoggedIn()) return;
     if (didMergeRef.current) return;
@@ -484,7 +443,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
               quantity: x.quantity,
               attributes: x.attributes,
               productSnapshot: x.productSnapshot,
-              variantStock: x.variantStock, // ✅ send to backend
+              variantStock: x.variantStock,
             })),
           }),
         });
@@ -502,26 +461,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     mergeGuestToBackendIfNeeded();
-    if (!isLoggedIn()) {
+    if (isLoggedIn()) {
       refreshCartFromBackend();
+    } else {
+      setItems([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!isLoggedIn()) {
-      refreshCartFromBackend();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(stored)]);
-
-  // ---------- Public actions ----------
+  // ---------- Public actions (now all require authentication) ----------
   const addToCart = async (
     product: CartProduct | UiProduct,
     qty: number = 1,
     variantId?: string | null,
     attributes?: { size?: string; color?: string; fabric?: string }
   ) => {
+    // 🔐 Require login
+    if (!requireAuthAndRedirect()) return;
+
     const addQty = Math.max(1, Number(qty) || 1);
     let cartProduct: CartProduct;
 
@@ -531,7 +488,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       cartProduct = uiProductToCartProduct(product);
     }
 
-    // Override variantId and attributes if provided
     const finalVariantId = variantId !== undefined ? variantId : cartProduct.variantId;
     const finalAttributes = attributes || cartProduct.variantAttributes || {};
     const finalCartProduct = {
@@ -540,10 +496,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       variantAttributes: finalAttributes,
     };
 
-    // ✅ Determine the variant stock at add time
     let variantStock: number | undefined;
     if (finalVariantId) {
-      // If the product object (passed or fetched) has variants, extract stock
       const fullProduct = (product as any).variants ? product : null;
       if (fullProduct && fullProduct.variants) {
         const variant = fullProduct.variants.find(
@@ -554,39 +508,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     }
-    // Fallback to product stockQty if no variant or variant not found
     if (variantStock === undefined && finalCartProduct.stockQty !== undefined) {
       variantStock = finalCartProduct.stockQty;
-    }
-
-    if (!isLoggedIn()) {
-      guestAdd(finalCartProduct, addQty, variantStock);
-      setItems((prev) => {
-        const existing = prev.find(
-          (x) =>
-            x.product.id === finalCartProduct.id &&
-            (x.product.variantId || null) === (finalVariantId || null)
-        );
-        if (existing) {
-          return prev.map((x) =>
-            x.product.id === finalCartProduct.id &&
-            (x.product.variantId || null) === (finalVariantId || null)
-              ? { ...x, quantity: x.quantity + addQty, variantStock }
-              : x
-          );
-        }
-        return [
-          ...prev,
-          {
-            _id: getGuestItemId(finalCartProduct.id, finalVariantId),
-            product: finalCartProduct,
-            quantity: addQty,
-            variantStock,
-          },
-        ];
-      });
-      toast.success(`Added ${finalCartProduct.name} to cart`);
-      return;
     }
 
     try {
@@ -598,7 +521,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           quantity: addQty,
           attributes: finalAttributes,
           productSnapshot: finalCartProduct,
-          variantStock, // ✅ send to backend
+          variantStock,
         }),
       });
 
@@ -616,18 +539,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const removeFromCart = async (itemId: string) => {
-    if (!isLoggedIn()) {
-      const [pid, vid] = itemId.split(':');
-      guestRemove(pid, vid || null);
-      setItems((prev) =>
-        prev.filter((x) => {
-          const xId = getGuestItemId(x.product.id, x.product.variantId);
-          return xId !== itemId;
-        })
-      );
-      toast.success("Item removed from cart");
-      return;
-    }
+    if (!requireAuthAndRedirect()) return;
 
     try {
       const res = await apiFetch(`${CART_BASE}/item/${itemId}`, { method: "DELETE" });
@@ -646,22 +558,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateQuantity = async (itemId: string, quantity: number) => {
-    const q = Math.max(1, Number(quantity));
+    if (!requireAuthAndRedirect()) return;
 
-    if (!isLoggedIn()) {
-      const [pid, vid] = itemId.split(':');
-      guestUpdateQty(pid, vid || null, q);
-      setItems((prev) =>
-        prev.map((x) => {
-          const xId = getGuestItemId(x.product.id, x.product.variantId);
-          if (xId === itemId) {
-            return { ...x, quantity: q };
-          }
-          return x;
-        })
-      );
-      return;
-    }
+    const q = Math.max(1, Number(quantity));
 
     try {
       const res = await apiFetch(`${CART_BASE}/item/${itemId}`, {
@@ -683,11 +582,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const clearCart = async () => {
-    if (!isLoggedIn()) {
-      guestClear();
-      toast.message("Cart cleared");
-      return;
-    }
+    if (!requireAuthAndRedirect()) return;
 
     try {
       const res = await apiFetch(CART_BASE, { method: "DELETE" });
