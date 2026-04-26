@@ -12,10 +12,11 @@ import {
   RotateCcw,
   Check,
   Loader2,
+  Share2, // added share icon
 } from "lucide-react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
-import { useCart, CartProduct } from "@/context/CartContext";
+import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { toast } from "@/hooks/use-toast";
 
@@ -356,6 +357,32 @@ const ProductDetail = () => {
     }
   };
 
+  // Share product
+  const handleShare = async () => {
+    if (!uiProduct) return;
+    const url = window.location.href;
+    const title = uiProduct.name;
+    const text = `Check out ${uiProduct.name} on JSGALLOR! ${uiProduct.description?.slice(0, 100) || ""}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          toast({ title: "Sharing failed", description: err.message, variant: "destructive" });
+        }
+      }
+    } else {
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(url);
+        toast({ title: "Link copied!", description: "Product link copied to clipboard." });
+      } catch (err) {
+        toast({ title: "Copy failed", description: "Please copy the URL manually.", variant: "destructive" });
+      }
+    }
+  };
+
   const validateSelections = () => {
     if (uiProduct?.hasVariants) {
       if (requireColor && !selectedColor) {
@@ -599,7 +626,7 @@ const ProductDetail = () => {
                   </div>
                 </div>
 
-                {/* ✅ Description with preserved line breaks */}
+                {/* Description */}
                 <div className="text-[#d6dfbd] whitespace-pre-wrap">
                   {uiProduct.description}
                 </div>
@@ -806,6 +833,7 @@ const ProductDetail = () => {
                       Buy Now
                     </Button>
 
+                    {/* Wishlist button */}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -822,6 +850,16 @@ const ProductDetail = () => {
                           }`}
                         />
                       )}
+                    </Button>
+
+                    {/* Share button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-12 w-12 border border-white/10 hover:bg-white/10 text-[#d6dfbd] hover:text-[#f4f7ec]"
+                      onClick={handleShare}
+                    >
+                      <Share2 className="w-5 h-5" />
                     </Button>
                   </div>
                 </div>

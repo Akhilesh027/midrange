@@ -25,24 +25,34 @@ import Wishlist from "./pages/Wishlist";
 import ResetPassword from "./pages/Forgotpassword";
 import SearchPage from "./pages/SearchPage";
 
+// Legal page imports
+import About from "./pages/legal/About";
+import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
+import TermsConditions from "./pages/legal/TermsConditions";
+import RefundPolicy from "./pages/legal/RefundPolicy";
+import ShippingPolicy from "./pages/legal/ShippingPolicy";
+import DeliveryPolicy from "./pages/legal/DeliveryPolicy";
+import WarrantyRefund from "./pages/legal/WarrantyRefund";
+import ReplacementPolicy from "./pages/legal/ReplacementPolicy";
+import ShippingInfo from "./pages/legal/ShippingInfo";
+import FAQ from "./pages/legal/FAQ";
+import Contact from "./pages/legal/Contact";
+
 const queryClient = new QueryClient();
 
-// ✅ Scroll to top on every route change
+// Scroll to top on route change
 const ScrollToTop = () => {
   const { pathname } = useLocation();
-
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname]);
-
   return null;
 };
 
-// ✅ Floating WhatsApp component
+// Floating WhatsApp component
 const FloatingWhatsApp = () => {
-  const whatsappNumber = "917075848516"; // Country code +91 followed by 7075848516
+  const whatsappNumber = "917075848516";
   const whatsappLink = `https://wa.me/${whatsappNumber}`;
-
   return (
     <a
       href={whatsappLink}
@@ -70,47 +80,48 @@ const App = () => (
             <Sonner />
 
             <BrowserRouter>
-              {/* ✅ Scroll reset */}
               <ScrollToTop />
-
-              {/* ✅ Global WhatsApp button */}
               <FloatingWhatsApp />
 
               <Routes>
+                {/* Main routes */}
                 <Route path="/" element={<Index />} />
                 <Route path="/mid" element={<Index />} />
-
+                <Route path="/collections" element={<Collections />} />
                 <Route path="/products" element={<Products />} />
-
                 <Route path="/categories" element={<Products />} />
-                <Route
-                  path="/categories/:categorySlug"
-                  element={<Products />}
-                />
+                <Route path="/categories/:categorySlug" element={<Products />} />
+                <Route path="/categories/:categorySlug/:subSlug" element={<Products />} />
                 <Route path="/search" element={<SearchPage />} />
-
-                <Route
-                  path="/categories/:categorySlug/:subSlug"
-                  element={<Products />}
-                />
-                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/product/:id" element={<ProductDetail />} />
 
+                {/* Cart & Checkout */}
                 <Route path="/cart" element={<Cart />} />
                 <Route path="/checkout" element={<Checkout />} />
+                <Route path="/order-success/:orderId" element={<OrderSuccess />} />
 
+                {/* Auth */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
-
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/orders" element={<Orders />} />
-
-                <Route
-                  path="/order-success/:orderId"
-                  element={<OrderSuccess />}
-                />
                 <Route path="/wishlist" element={<Wishlist />} />
-                {/* Catch all */}
+
+                {/* Legal & Policy Pages (all use Layout) */}
+                <Route path="/about" element={<About />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/terms" element={<TermsConditions />} />
+                <Route path="/refund-policy" element={<RefundPolicy />} />
+                <Route path="/shipping-policy" element={<ShippingPolicy />} />
+                <Route path="/delivery-policy" element={<DeliveryPolicy />} />
+                <Route path="/warranty-refund" element={<WarrantyRefund />} />
+                <Route path="/replacement-policy" element={<ReplacementPolicy />} />
+                <Route path="/shipping-info" element={<ShippingInfo />} />
+                <Route path="/faq" element={<FAQ />} />
+                <Route path="/contact" element={<Contact />} />
+
+                {/* 404 catch‑all */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

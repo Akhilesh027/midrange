@@ -18,6 +18,7 @@ type ProductDB = {
   category: string; // slug
   subcategory?: string; // slug
   price: number;
+  discount?: number; // optional discount percent from API
   image: string;
   galleryImages?: string[];
   material?: string;
@@ -30,22 +31,21 @@ type ProductDB = {
   shortDescription?: string;
 };
 
-type CartProduct = {
-  id: string;
+// This is the product shape expected by ProductCard
+type MappedProduct = {
+  _id: string;
   name: string;
-  category: string; // slug
-  subcategory?: string; // slug
-  price: number;
-  finalPrice: number;
+  price: number;        // final discounted price
+  originalPrice: number;
   discountPercent: number;
-  discountAmount: number;
   image: string;
-  galleryImages: string[];
-  material?: string;
+  inStock?: boolean;
   color?: string;
-  availability?: string;
-  stockQty?: number;
-  description?: string;
+  material?: string;
+  rating?: number;
+  reviews?: number;
+  tags?: string[];
+  colors?: string[];
 };
 
 type ApiCategory = {
@@ -61,40 +61,37 @@ type ApiCategory = {
   productCount?: number;
 };
 
-const DISCOUNT_PERCENT = 10;
-const norm = (s?: string) => String(s || "").trim().toLowerCase();
+const DEFAULT_DISCOUNT = 10; // fallback discount percent if none provided
 
-function computeDiscount(price: number, percent: number) {
-  const discountAmount = Math.round((Number(price || 0) * percent) / 100);
-  const finalPrice = Number(price || 0) - discountAmount;
-  return { discountAmount, finalPrice };
+function computeDiscount(price: number, discountPercent: number) {
+  const finalPrice = Math.round(price * (1 - discountPercent / 100));
+  const originalPrice = price;
+  return { finalPrice, originalPrice };
 }
 
-function mapDbToUI(p: ProductDB): CartProduct {
-  const { discountAmount, finalPrice } = computeDiscount(p.price, DISCOUNT_PERCENT);
+function mapDbToProduct(p: ProductDB): MappedProduct {
+  const discountPercent = p.discount ?? DEFAULT_DISCOUNT;
+  const { finalPrice, originalPrice } = computeDiscount(p.price, discountPercent);
 
   return {
-    id: p._id,
+    _id: p._id,
     name: p.name,
-    category: p.category,
-    subcategory: p.subcategory,
-
-    price: Number(p.price || 0),
-    finalPrice,
-    discountPercent: DISCOUNT_PERCENT,
-    discountAmount,
-
+    price: finalPrice,
+    originalPrice: originalPrice,
+    discountPercent: discountPercent,
     image: p.image,
-    galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
-
-    material: p.material,
+    inStock: (p.quantity ?? 0) > 0 && p.availability?.toLowerCase() !== "out of stock",
     color: p.color,
-    availability: p.availability,
-    stockQty: p.quantity,
-
-    description: p.description || p.shortDescription || "",
+    material: p.material,
+    // optional for ProductCard extras
+    rating: 0,
+    reviews: 0,
+    tags: [],
+    colors: p.color ? [p.color] : [],
   };
 }
+
+const norm = (s?: string) => String(s || "").trim().toLowerCase();
 
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -241,7 +238,7 @@ export default function Products() {
     };
   }, [selectedCategory, selectedSubcategory]);
 
-  const products = useMemo(() => rawProducts.map(mapDbToUI), [rawProducts]);
+  const products = useMemo(() => rawProducts.map(mapDbToProduct), [rawProducts]);
 
   const materials = useMemo(() => {
     const set = new Set(products.map((p) => p.material).filter(Boolean) as string[]);
@@ -648,7 +645,7 @@ export default function Products() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                   {filteredProducts.map((product, idx) => (
                     <div
-                      key={product.id}
+                      key={product._id}
                       className="animate-fade-in"
                       style={{ animationDelay: `${idx * 0.05}s` }}
                     >

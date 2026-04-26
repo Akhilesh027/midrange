@@ -230,8 +230,8 @@ export default function Index() {
             <div className="grid md:grid-cols-2 gap-8 items-center">
               <div className="space-y-6 animate-fade-in">
                 <span className="inline-block px-4 py-1.5 rounded-full bg-[#f3f6ea]/10 text-[#eef4df] text-sm font-medium border border-[#f3f6ea]/20 shadow-sm">
-                  New Collection 2025
-                </span>
+                  New Collection 2026       
+                          </span>
 
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#f8fbf2] leading-tight tracking-tight">
                   Mid-Range Furniture{" "}

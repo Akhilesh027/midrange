@@ -8,68 +8,76 @@ interface UnifiedProduct {
   id?: string;
   _id?: string;
   name: string;
-  price?: number;        // original price (before discount)
-  oldPrice?: number;     // optional explicit original price
-  newPrice?: number;     // optional explicit discounted price
-  discount?: number;     // discount percentage (0-100)
+  price?: number;        // final discounted price (if using new shape)
+  originalPrice?: number; // original pre‑discount price (new shape)
+  discountPercent?: number; // discount % (new shape)
+  oldPrice?: number;     // optional explicit original price (legacy)
+  newPrice?: number;     // optional explicit discounted price (legacy)
+  discount?: number;     // discount percentage (legacy)
   image?: string;
   category?: string;
   rating?: number;
   reviews?: number;
+  gst?: number;          // GST percentage (default to 0 if missing)
+  inStock?: boolean;     // not used in cart but can be kept
 }
 
-// ----- CORRECTED DISCOUNT PRICE HELPERS -----
+// ----- HELPER FUNCTIONS (compatible with both new and legacy product shapes) -----
+
 // Returns the current (discounted) price
 const getDiscountedPrice = (product: UnifiedProduct): number | undefined => {
-  // If newPrice is explicitly provided, use it
+  // Prefer explicit newPrice (legacy)
   if (typeof product.newPrice === 'number') return product.newPrice;
-  
-  // Otherwise, use price and apply discount if present
-  if (typeof product.price === 'number') {
-    const discount = product.discount ?? 0;
-    if (discount > 0) {
-      // Apply discount to original price
-      return Math.round(product.price * (1 - discount / 100) * 100) / 100;
-    }
-    return product.price;
-  }
-  
+  // Prefer price field (new shape: price is final discounted)
+  if (typeof product.price === 'number') return product.price;
   return undefined;
 };
 
 // Returns the original price (before discount)
 const getOriginalPrice = (product: UnifiedProduct): number | undefined => {
-  // If oldPrice is explicitly provided, use it
+  // Prefer explicit originalPrice (new shape)
+  if (typeof product.originalPrice === 'number') return product.originalPrice;
+  // Prefer explicit oldPrice (legacy)
   if (typeof product.oldPrice === 'number') return product.oldPrice;
-  
-  // Otherwise, price is the original
-  if (typeof product.price === 'number') return product.price;
-  
+  // Fallback: if price is available and discount exists, compute original
+  if (typeof product.price === 'number') {
+    const discountPercent = getDiscountPercent(product);
+    if (discountPercent > 0) {
+      return Math.round(product.price / (1 - discountPercent / 100) * 100) / 100;
+    }
+    return product.price;
+  }
   return undefined;
 };
 
-// Returns discount percentage (either from product.discount or calculated)
+// Returns discount percentage (either from product.discountPercent, product.discount, or calculated)
 const getDiscountPercent = (product: UnifiedProduct): number => {
-  // If discount is directly provided, use it
+  // Prefer discountPercent (new shape)
+  if (typeof product.discountPercent === 'number') return product.discountPercent;
+  // Prefer discount (legacy)
   if (typeof product.discount === 'number') return product.discount;
-  
   // Calculate from original and discounted prices
   const original = getOriginalPrice(product);
   const discounted = getDiscountedPrice(product);
   if (original && discounted && original > discounted) {
     return Math.round(((original - discounted) / original) * 100);
   }
-  
   return 0;
 };
 
+// Returns GST (default to 0 if missing)
+const getGst = (product: UnifiedProduct): number => {
+  return typeof product.gst === 'number' ? product.gst : 0;
+};
+
 export const ProductCard = ({ product }: { product: UnifiedProduct }) => {
-  const { addToCart } = useCart();
+  const { addItem } = useCart();  // ✅ use addItem, not addToCart
 
   const productId = product.id || product._id || '';
   const newPrice = getDiscountedPrice(product);
   const oldPrice = getOriginalPrice(product);
   const discountPercent = getDiscountPercent(product);
+  const gst = getGst(product);
   const hasDiscount = discountPercent > 0 && oldPrice !== undefined && oldPrice > (newPrice || 0);
 
   const formatPrice = (price: number) => {
@@ -84,22 +92,28 @@ export const ProductCard = ({ product }: { product: UnifiedProduct }) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!newPrice || newPrice <= 0) {
+    if (!newPrice || newPrice <= 0 || !productId) {
       toast({
         title: "Cannot add",
-        description: "Price information is missing.",
+        description: "Product information is incomplete.",
         variant: "destructive",
       });
       return;
     }
 
-    addToCart({
+    addItem({
       id: productId,
       name: product.name,
-      price: newPrice,
+      price: newPrice,                     // final discounted price
+      originalPrice: oldPrice ?? newPrice, // original price (fallback to final)
+      discountPercent: discountPercent,
+      gst: gst,
+      isCustomized: false,
       image: product.image || '',
-      category: product.category || '',
-    });
+      variantId: null,
+      attributes: {},
+    }, 1);  // quantity = 1
+
     toast({
       title: "Added to cart",
       description: `${product.name} has been added to your cart.`,
@@ -148,14 +162,6 @@ export const ProductCard = ({ product }: { product: UnifiedProduct }) => {
             {product.name}
           </h3>
 
-          {showRating && (
-            <div className="flex items-center gap-1 mb-2">
-              <Star className="w-3.5 h-3.5 fill-primary text-primary" />
-              <span className="text-xs text-muted-foreground">
-                {product.rating} ({product.reviews} reviews)
-              </span>
-            </div>
-          )}
 
           <div className="flex flex-wrap items-center gap-2">
             {showPriceMissing ? (
