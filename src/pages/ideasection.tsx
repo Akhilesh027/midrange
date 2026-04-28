@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-
+import image1 from '../Image/Bedroom  Sign Space.jpg.jpeg';
+import image2 from '../Image/Dinin Sign Space.jpg.jpeg';
+import image3 from '../Image/Livingroom Sign Space.jpg.jpeg';
 // ----- Hotspot Component (with green theme) -----
 interface HotspotProps {
   top: string;
@@ -126,7 +128,7 @@ const InteractiveHotspot = ({ top, left, productId, productName, price }: Hotspo
 // ----- Data (unchanged) -----
 const ideasData = [
   {
-    image: "https://images.unsplash.com/photo-1582133776712-0b942f3ef601?q=80&w=1074",
+    image: image1,
     title: "Organizing a place for reading",
     hotspots: [
       { top: "30%", left: "40%", productId: 5, productName: "Milano Armchair", price: 241500 },
@@ -134,7 +136,7 @@ const ideasData = [
     ],
   },
   {
-    image: "https://plus.unsplash.com/premium_photo-1690971631383-326a8b5d8ed7?q=80&w=880",
+    image: image2,
     title: "A romantic armchair in a modern interior",
     hotspots: [
       { top: "35%", left: "30%", productId: 5, productName: "Milano Armchair", price: 241500 },
@@ -142,7 +144,7 @@ const ideasData = [
     ],
   },
   {
-    image: "https://plus.unsplash.com/premium_photo-1725295198039-b92478b0ff30?q=80&w=674",
+    image: image3,
     title: "A modern take on the Gustavian style",
     hotspots: [
       { top: "25%", left: "50%", productId: 1, productName: "Haynes Sofa", price: 958990 },
