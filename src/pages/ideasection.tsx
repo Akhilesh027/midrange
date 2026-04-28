@@ -156,7 +156,6 @@ const ideasData = [
 const IdeasSection = () => {
   return (
     <section className="py-16 lg:py-24 bg-gradient-to-r from-[#2c3e1c] via-[#4b5e29] to-[#2c3e1c] relative">
-      {/* Soft overlay to improve text contrast */}
       <div className="absolute inset-0 bg-white/5 backdrop-blur-[2px]" />
 
       <div className="container mx-auto px-4 relative z-10">
