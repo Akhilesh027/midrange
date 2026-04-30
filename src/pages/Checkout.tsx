@@ -1,9 +1,9 @@
 // src/pages/Checkout.tsx
 // ✅ Fully responsive (mobile, tablet, desktop)
-// ✅ Fixed Checkout with proper tax calculation, and security
+// ✅ Fixed Checkout with correct inclusive GST calculation
 // ✅ Styled consistently with Index & Cart (earthy green theme)
 // ✅ Displays variant attributes (size, color, fabric) in order summary
-// ✅ Dynamic GST: calculated on discounted price per item
+// ✅ GST is shown as inclusive and NOT added again to final total
 // ✅ Proper coupon validation and persistence
 // ✅ ALL FRONTEND VALIDATION REMOVED (stock, address, total, form)
 // ✅ FIXED: No oversizing on any screen size (down to 280px)
@@ -28,11 +28,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-// Environment configuration
 const WEBSITE: "affordable" | "midrange" | "luxury" = "midrange";
 const API_BASE = import.meta.env.VITE_API_BASE || "https://api.jsgallor.com/api";
 
-// Types
 type Address = {
   _id: string;
   fullName: string;
@@ -105,7 +103,6 @@ type CartItem = {
   };
 };
 
-// Utility functions
 function getToken() {
   return localStorage.getItem("midrange_token");
 }
@@ -199,7 +196,7 @@ export default function Checkout() {
   };
 
   const { items, totalPrice, refreshCartFromBackend, clearCart } = useCart();
-  const shippingTimeoutRef = useRef<NodeJS.Timeout>();
+  const shippingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [step, setStep] = useState(1);
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -226,9 +223,13 @@ export default function Checkout() {
   const [placing, setPlacing] = useState(false);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
 
-  const [appliedCoupon, setAppliedCoupon] = useState<CouponPayload | null>(null);
-  const [discount, setDiscount] = useState(0);
-  const [shippingDiscount, setShippingDiscount] = useState(0);
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponPayload | null>(
+    navState.coupon || null
+  );
+  const [discount, setDiscount] = useState(Number(navState.discount || 0));
+  const [shippingDiscount, setShippingDiscount] = useState(
+    Number(navState.shippingDiscount || 0)
+  );
 
   const [shippingBase, setShippingBase] = useState(0);
   const [shippingLoading, setShippingLoading] = useState(false);
@@ -244,75 +245,58 @@ export default function Checkout() {
     appliedRule: "",
   });
 
-  // selectedAddress memo
   const selectedAddress = useMemo(() => {
     return addresses.find((a) => a._id === selectedAddressId) || null;
   }, [addresses, selectedAddressId]);
 
-  // ------------------------------------------------------------
-  // NEW: Compute original subtotal (before product discounts)
-  // and product discount total
-  // ------------------------------------------------------------
-  const { originalSubtotal, productDiscountTotal } = useMemo(() => {
+  const { originalSubtotal, productDiscountTotal, inclusiveGst } = useMemo(() => {
     let original = 0;
     let discounted = 0;
+    let gstTotal = 0;
 
-    for (const item of items) {
+    for (const item of items as CartItem[]) {
       const qty = item.quantity || 1;
-      // Try to get original price from product or productSnapshot
+      const product = item.product || {};
+      const snapshot = item.productSnapshot || {};
+
       const originalPrice =
-        item.product?.originalPrice ??
-        item.productSnapshot?.originalPrice ??
-        item.product?.price ?? // fallback to same as discounted if not available
-        0;
-      const finalPrice = item.product?.finalPrice ?? item.productSnapshot?.finalPrice ?? item.product?.price ?? 0;
+        product.originalPrice ?? snapshot.originalPrice ?? product.price ?? 0;
+
+      const finalPrice =
+        product.finalPrice ?? snapshot.finalPrice ?? product.price ?? 0;
+
+      const gstPercent = product.gst ?? snapshot.gst ?? 0;
 
       original += originalPrice * qty;
       discounted += finalPrice * qty;
+
+      // Product prices are treated as GST-inclusive, matching Cart calculation.
+      if (gstPercent > 0) {
+        const exclusivePrice = finalPrice / (1 + gstPercent / 100);
+        gstTotal += (finalPrice - exclusivePrice) * qty;
+      }
     }
 
     return {
       originalSubtotal: original,
       productDiscountTotal: Math.max(0, original - discounted),
+      inclusiveGst: Math.round(gstTotal * 100) / 100,
     };
   }, [items]);
 
-  // Tax calculation on discounted price after product & coupon discount
-  const tax = useMemo(() => {
-    if (items.length === 0 || totalPrice === 0) return 0;
-
-    // Discounted subtotal after product discount (totalPrice) minus coupon discount
-    const discountedAfterCoupon = Math.max(0, totalPrice - discount);
-    if (discountedAfterCoupon === 0) return 0;
-
-    let totalTax = 0;
-    for (const item of items) {
-      const product = item.product || {};
-      const qty = item.quantity || 1;
-      const itemPrice = product.finalPrice || product.price || 0;
-      const gstPercent = product.gst || item.productSnapshot?.gst || 0;
-      if (gstPercent === 0) continue;
-
-      const itemOriginalTotal = itemPrice * qty;
-      const itemProportion = itemOriginalTotal / totalPrice;
-      const itemDiscountedValue = discountedAfterCoupon * itemProportion;
-      const itemTax = itemDiscountedValue * (gstPercent / 100);
-      totalTax += itemTax;
-    }
-
-    return Math.round(totalTax * 100) / 100;
-  }, [items, totalPrice, discount]);
+  const subtotalAfterCoupon = useMemo(() => {
+    return Math.max(0, Number(totalPrice || 0) - Number(discount || 0));
+  }, [totalPrice, discount]);
 
   const shipping = useMemo(() => {
     return Math.max(0, Number(shippingBase || 0) - Number(shippingDiscount || 0));
   }, [shippingBase, shippingDiscount]);
 
+  // IMPORTANT: GST is already included in totalPrice, so do not add it again.
   const finalTotal = useMemo(() => {
-    const discountedAfterCoupon = Math.max(0, totalPrice - discount);
-    return Math.max(0, discountedAfterCoupon + shipping + tax);
-  }, [totalPrice, discount, shipping, tax]);
+    return Math.max(0, subtotalAfterCoupon + shipping);
+  }, [subtotalAfterCoupon, shipping]);
 
-  // Authentication check
   useEffect(() => {
     if (!getToken()) {
       toast.error("Please login to checkout");
@@ -322,14 +306,12 @@ export default function Checkout() {
     refreshCartFromBackend();
   }, [navigate, refreshCartFromBackend]);
 
-  // Cart empty check
   useEffect(() => {
     if (items.length === 0 && !placing) {
       navigate("/cart");
     }
   }, [items.length, navigate, placing]);
 
-  // Fetch addresses
   const fetchAddresses = useCallback(async () => {
     try {
       setLoadingAddresses(true);
@@ -359,30 +341,20 @@ export default function Checkout() {
     fetchAddresses();
   }, [step, fetchAddresses]);
 
-  // Debounced shipping calculation
   const fetchShippingCost = useCallback(async (params: { city?: string; pincode?: string }) => {
     const city = String(params.city || "").trim();
     const pincode = String(params.pincode || "").trim();
 
     if (!city) {
       setShippingBase(0);
-      setShippingMeta({
-        found: false,
-        city: "",
-        pincode: "",
-        appliedRule: "",
-      });
+      setShippingMeta({ found: false, city: "", pincode: "", appliedRule: "" });
       return;
     }
 
     try {
       setShippingLoading(true);
 
-      const qs = new URLSearchParams({
-        website: WEBSITE,
-        city,
-      });
-
+      const qs = new URLSearchParams({ website: WEBSITE, city });
       if (pincode) qs.set("pincode", pincode);
 
       const res = await apiFetch(`/shipping-costs/by-location?${qs.toString()}`, {
@@ -405,22 +377,12 @@ export default function Checkout() {
         });
       } else {
         setShippingBase(0);
-        setShippingMeta({
-          found: false,
-          city,
-          pincode,
-          appliedRule: "",
-        });
+        setShippingMeta({ found: false, city, pincode, appliedRule: "" });
       }
     } catch (error) {
       console.error("Shipping fetch error:", error);
       setShippingBase(0);
-      setShippingMeta({
-        found: false,
-        city,
-        pincode,
-        appliedRule: "",
-      });
+      setShippingMeta({ found: false, city, pincode, appliedRule: "" });
     } finally {
       setShippingLoading(false);
     }
@@ -429,12 +391,7 @@ export default function Checkout() {
   useEffect(() => {
     if (!selectedAddress?.city) {
       setShippingBase(0);
-      setShippingMeta({
-        found: false,
-        city: "",
-        pincode: "",
-        appliedRule: "",
-      });
+      setShippingMeta({ found: false, city: "", pincode: "", appliedRule: "" });
       return;
     }
 
@@ -456,7 +413,6 @@ export default function Checkout() {
     };
   }, [selectedAddress?.city, selectedAddress?.pincode, fetchShippingCost]);
 
-  // Coupon validation on load
   useEffect(() => {
     const validateSavedCoupon = async () => {
       try {
@@ -468,7 +424,7 @@ export default function Checkout() {
 
         if (savedCoupon?.code) {
           setValidatingCoupon(true);
-          
+
           const res = await apiFetch("/midrange/coupons/validate", {
             method: "POST",
             body: JSON.stringify({
@@ -507,16 +463,12 @@ export default function Checkout() {
     }
   }, [totalPrice]);
 
-  // NO VALIDATION: can always go next
-  const canGoNext = useMemo(() => true, []);
-
-  // NO ADDRESS FORM VALIDATION
   const handleAddAddress = async () => {
     try {
       setSavingAddress(true);
 
-      const url = editingAddress 
-        ? `/midrange/addresses/${editingAddress._id}` 
+      const url = editingAddress
+        ? `/midrange/addresses/${editingAddress._id}`
         : "/midrange/addresses";
       const method = editingAddress ? "PUT" : "POST";
 
@@ -572,11 +524,11 @@ export default function Checkout() {
       }
 
       toast.success("Address deleted");
-      
+
       if (selectedAddressId === addressId) {
         setSelectedAddressId("");
       }
-      
+
       await fetchAddresses();
     } catch {
       toast.error("Failed to delete address");
@@ -601,7 +553,6 @@ export default function Checkout() {
     setShowAddressForm(true);
   };
 
-  // NO ORDER VALIDATION – always proceed
   const handlePlaceOrder = async () => {
     if (shippingLoading) {
       toast.error("Please wait, shipping is being calculated");
@@ -641,13 +592,14 @@ export default function Checkout() {
           pricing: {
             originalSubtotal,
             productDiscount: productDiscountTotal,
-            subtotalAfterProduct: totalPrice,
-            couponDiscount: discount,
-            subtotalAfterCoupon: Math.max(0, totalPrice - discount),
+            subtotalAfterProduct: Number(totalPrice) || 0,
+            couponDiscount: Number(discount) || 0,
+            subtotalAfterCoupon,
+            inclusiveGst,
+            tax: inclusiveGst,
             shippingCost: Number(shippingBase) || 0,
             shippingDiscount: Number(shippingDiscount) || 0,
             shippingFinal: shipping,
-            tax,
             total: finalTotal,
           },
 
@@ -672,7 +624,11 @@ export default function Checkout() {
       }
 
       const orderId = json?.data?._id || json?.order?._id;
-      toast.success(paymentMethod === "ONLINE" ? "Payment successful! Order placed!" : "Order placed successfully!");
+      toast.success(
+        paymentMethod === "ONLINE"
+          ? "Payment successful! Order placed!"
+          : "Order placed successfully!"
+      );
 
       if (orderId && appliedCoupon?.code) {
         try {
@@ -709,17 +665,17 @@ export default function Checkout() {
     if (!ok) throw new Error("Razorpay SDK failed to load.");
 
     const amountInRupees = finalTotal;
-    console.log(`💰 Sending amount in rupees: ₹${amountInRupees}`);
 
     const createRes = await apiFetch("/payments/create-order", {
       method: "POST",
       body: JSON.stringify({
         amount: amountInRupees,
         currency: "INR",
-        cartTotal: totalPrice,
-        discount,
+        cartTotal: Number(totalPrice) || 0,
+        discount: Number(discount) || 0,
         shipping,
-        tax,
+        inclusiveGst,
+        tax: inclusiveGst,
         couponCode: appliedCoupon?.code,
         addressId: selectedAddressId,
         website: WEBSITE,
@@ -742,7 +698,7 @@ export default function Checkout() {
     const keyId = createJson.keyId;
     const user = getSavedUser();
 
-    return new Promise((resolve, reject) => {
+    return new Promise<any>((resolve, reject) => {
       const options = {
         key: keyId,
         order_id: rpOrder.id,
@@ -756,7 +712,7 @@ export default function Checkout() {
           contact: user?.phone || selectedAddress?.phone || "",
         },
         theme: { color: "#556b2f" },
-        handler: async (resp) => {
+        handler: async (resp: any) => {
           try {
             const verifyRes = await apiFetch("/payments/verify", {
               method: "POST",
@@ -778,7 +734,9 @@ export default function Checkout() {
         modal: { ondismiss: () => reject(new Error("Payment cancelled")) },
       };
       const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", (response) => reject(new Error(response.error?.description)));
+      rzp.on("payment.failed", (response: any) =>
+        reject(new Error(response.error?.description || "Payment failed"))
+      );
       rzp.open();
     });
   };
@@ -820,7 +778,6 @@ export default function Checkout() {
         </nav>
 
         <div className="container mx-auto px-4 py-4 md:py-8">
-          {/* Progress Steps - Responsive */}
           <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-4 md:p-6 mb-6 md:mb-8">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-3">
               {steps.map((s, idx) => {
@@ -864,7 +821,6 @@ export default function Checkout() {
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6 md:gap-8">
-            {/* Main Content */}
             <div className="lg:col-span-2 space-y-4">
               {step === 1 && (
                 <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-4 md:p-6">
@@ -956,8 +912,7 @@ export default function Checkout() {
                               <p className="text-sm text-[#d6dfbd] mt-1 break-words">
                                 {a.line1}
                                 {a.line2 ? `, ${a.line2}` : ""}
-                                {a.landmark ? `, ${a.landmark}` : ""}, {a.city}, {a.state} -{" "}
-                                {a.pincode}
+                                {a.landmark ? `, ${a.landmark}` : ""}, {a.city}, {a.state} - {a.pincode}
                               </p>
                               <p className="text-xs text-[#d6dfbd] mt-1 break-words">📞 {a.phone}</p>
                             </div>
@@ -988,9 +943,7 @@ export default function Checkout() {
                             )}
 
                             {!shippingLoading && !shippingMeta.found && (
-                              <p className="text-xs text-green-300 mt-1">
-                                ✨ Free shipping applied
-                              </p>
+                              <p className="text-xs text-green-300 mt-1">✨ Free shipping applied</p>
                             )}
                           </div>
                         </div>
@@ -1016,9 +969,7 @@ export default function Checkout() {
               {step === 2 && (
                 <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-4 md:p-6">
                   <h2 className="text-lg font-semibold text-[#f4f7ec] mb-2">Payment Method</h2>
-                  <p className="text-sm text-[#d6dfbd] mb-5">
-                    Choose how you want to pay
-                  </p>
+                  <p className="text-sm text-[#d6dfbd] mb-5">Choose how you want to pay</p>
 
                   {selectedAddress && (
                     <div className="mb-5 rounded-xl border border-white/10 p-4 bg-white/5">
@@ -1026,8 +977,7 @@ export default function Checkout() {
                         <div className="min-w-0">
                           <p className="font-medium text-[#f4f7ec]">Delivering to</p>
                           <p className="text-sm text-[#d6dfbd] mt-1 break-words">
-                            {selectedAddress.fullName}, {selectedAddress.city}, {selectedAddress.state} -{" "}
-                            {selectedAddress.pincode}
+                            {selectedAddress.fullName}, {selectedAddress.city}, {selectedAddress.state} - {selectedAddress.pincode}
                           </p>
                           {!shippingLoading && shippingMeta.found && shippingMeta.appliedRule && (
                             <p className="text-xs text-[#d6dfbd] mt-1 break-words">
@@ -1108,7 +1058,6 @@ export default function Checkout() {
                 </div>
               )}
 
-              {/* Navigation Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                 <Button
                   variant="outline"
@@ -1133,12 +1082,10 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* Order Summary Sidebar - Responsive */}
             <div className="lg:col-span-1">
               <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-4 md:p-6 lg:sticky lg:top-24">
                 <h2 className="text-lg font-semibold text-[#f4f7ec] mb-4">Order Summary</h2>
 
-                {/* Order Items */}
                 <div className="space-y-4 mb-5 max-h-96 overflow-y-auto pr-1">
                   {(items as CartItem[]).map((item: CartItem) => {
                     const qty = item.quantity || 1;
@@ -1150,7 +1097,7 @@ export default function Checkout() {
                     const variantAttributes = product.variantAttributes || item.attributes || {};
 
                     return (
-                      <div key={item._id || `${item.productId}-${Date.now()}`} className="flex gap-3 items-start">
+                      <div key={item._id || `${item.productId}-${item.variantId || "default"}`} className="flex gap-3 items-start">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-lg overflow-hidden border border-white/10 bg-white/5 flex-shrink-0">
                           {image ? (
                             <img src={image} alt={name} className="w-full h-full object-cover" />
@@ -1162,9 +1109,7 @@ export default function Checkout() {
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-[#f4f7ec] break-words">
-                            {name}
-                          </p>
+                          <p className="text-sm font-semibold text-[#f4f7ec] break-words">{name}</p>
 
                           {(variantAttributes.color || variantAttributes.size || variantAttributes.fabric) && (
                             <div className="flex flex-wrap gap-1 mt-1">
@@ -1208,15 +1153,12 @@ export default function Checkout() {
                   })}
                 </div>
 
-                {/* Price Breakdown with Product Discount */}
                 <div className="space-y-3 mb-4">
-                  {/* 1. Original Subtotal */}
                   <div className="flex justify-between text-sm">
                     <span className="text-[#d6dfbd]">Subtotal (Original)</span>
                     <span className="text-[#f4f7ec]">{formatPrice(originalSubtotal)}</span>
                   </div>
 
-                  {/* 2. Product Discount (if any) */}
                   {productDiscountTotal > 0 && (
                     <div className="flex justify-between text-sm text-green-300">
                       <span>Product Discount</span>
@@ -1224,13 +1166,11 @@ export default function Checkout() {
                     </div>
                   )}
 
-                  {/* 3. Subtotal after product discount */}
                   <div className="flex justify-between text-sm font-semibold pt-1">
                     <span className="text-[#d6dfbd]">Subtotal after product discount</span>
                     <span className="text-[#f4f7ec]">{formatPrice(totalPrice)}</span>
                   </div>
 
-                  {/* 4. Coupon Discount (if any) */}
                   {discount > 0 && (
                     <div className="flex justify-between text-sm text-green-300">
                       <span>Coupon Discount</span>
@@ -1238,13 +1178,11 @@ export default function Checkout() {
                     </div>
                   )}
 
-                  {/* 5. GST (calculated on discounted after product & coupon) */}
                   <div className="flex justify-between text-sm">
-                    <span className="text-[#d6dfbd]">GST (on discounted price)</span>
-                    <span className="text-[#f4f7ec]">{formatPrice(tax)}</span>
+                    <span className="text-[#d6dfbd]">Inclusive GST</span>
+                    <span className="text-[#f4f7ec]">{formatPrice(inclusiveGst)}</span>
                   </div>
 
-                  {/* 6. Shipping */}
                   <div className="flex justify-between text-sm">
                     <span className="text-[#d6dfbd]">Shipping</span>
                     <span className="text-[#f4f7ec]">
@@ -1272,7 +1210,6 @@ export default function Checkout() {
                   )}
                 </div>
 
-                {/* Total */}
                 <div className="border-t border-white/20 pt-4 mb-6">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-[#f4f7ec]">Total Amount</span>
@@ -1298,7 +1235,6 @@ export default function Checkout() {
         </div>
       </div>
 
-      {/* Address Form Modal - Responsive */}
       {showAddressForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 overflow-y-auto">
           <div
@@ -1335,9 +1271,7 @@ export default function Checkout() {
                   <Input
                     placeholder="Full Name *"
                     value={addressForm.fullName}
-                    onChange={(e) =>
-                      setAddressForm((s) => ({ ...s, fullName: e.target.value }))
-                    }
+                    onChange={(e) => setAddressForm((s) => ({ ...s, fullName: e.target.value }))}
                     className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb]"
                   />
                   <Input
@@ -1356,27 +1290,21 @@ export default function Checkout() {
                   <Input
                     placeholder="Address Line 1 *"
                     value={addressForm.line1}
-                    onChange={(e) =>
-                      setAddressForm((s) => ({ ...s, line1: e.target.value }))
-                    }
+                    onChange={(e) => setAddressForm((s) => ({ ...s, line1: e.target.value }))}
                     className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb]"
                   />
 
                   <Input
                     placeholder="Address Line 2 (optional)"
                     value={addressForm.line2}
-                    onChange={(e) =>
-                      setAddressForm((s) => ({ ...s, line2: e.target.value }))
-                    }
+                    onChange={(e) => setAddressForm((s) => ({ ...s, line2: e.target.value }))}
                     className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb]"
                   />
 
                   <Input
                     placeholder="Landmark (optional)"
                     value={addressForm.landmark}
-                    onChange={(e) =>
-                      setAddressForm((s) => ({ ...s, landmark: e.target.value }))
-                    }
+                    onChange={(e) => setAddressForm((s) => ({ ...s, landmark: e.target.value }))}
                     className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb]"
                   />
 
@@ -1384,17 +1312,13 @@ export default function Checkout() {
                     <Input
                       placeholder="City *"
                       value={addressForm.city}
-                      onChange={(e) =>
-                        setAddressForm((s) => ({ ...s, city: e.target.value }))
-                      }
+                      onChange={(e) => setAddressForm((s) => ({ ...s, city: e.target.value }))}
                       className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb]"
                     />
                     <Input
                       placeholder="State *"
                       value={addressForm.state}
-                      onChange={(e) =>
-                        setAddressForm((s) => ({ ...s, state: e.target.value }))
-                      }
+                      onChange={(e) => setAddressForm((s) => ({ ...s, state: e.target.value }))}
                       className="bg-white/10 border-white/20 text-[#f7faef] placeholder:text-[#d5dfbb]"
                     />
                   </div>
@@ -1417,9 +1341,7 @@ export default function Checkout() {
                     id="isDefault"
                     type="checkbox"
                     checked={!!addressForm.isDefault}
-                    onChange={(e) =>
-                      setAddressForm((s) => ({ ...s, isDefault: e.target.checked }))
-                    }
+                    onChange={(e) => setAddressForm((s) => ({ ...s, isDefault: e.target.checked }))}
                     className="accent-[#eef4df]"
                   />
                   <label htmlFor="isDefault" className="text-sm text-[#d6dfbd]">
@@ -1449,8 +1371,10 @@ export default function Checkout() {
                         <Loader2 className="w-4 h-4 animate-spin" />
                         {editingAddress ? "Updating..." : "Saving..."}
                       </span>
+                    ) : editingAddress ? (
+                      "Update Address"
                     ) : (
-                      editingAddress ? "Update Address" : "Save Address"
+                      "Save Address"
                     )}
                   </Button>
                 </div>

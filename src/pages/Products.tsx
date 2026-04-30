@@ -18,7 +18,7 @@ type ProductDB = {
   category: string; // slug
   subcategory?: string; // slug
   price: number;
-  discount?: number; // optional discount percent from API
+  discount?: number;
   image: string;
   galleryImages?: string[];
   material?: string;
@@ -31,11 +31,10 @@ type ProductDB = {
   shortDescription?: string;
 };
 
-// This is the product shape expected by ProductCard
 type MappedProduct = {
   _id: string;
   name: string;
-  price: number;        // final discounted price
+  price: number;
   originalPrice: number;
   discountPercent: number;
   image: string;
@@ -49,11 +48,14 @@ type MappedProduct = {
 };
 
 type ApiCategory = {
-  id: string;
+  _id?: string;
+  id?: string;
   name: string;
   slug: string;
   segment?: "all" | "affordable" | "midrange" | "luxury";
-  parentId: string | null;
+  parentId?: string | null;
+  parent?: string | null;
+  parentCategory?: string | null;
   status?: "active" | "hidden" | "disabled";
   showOnWebsite?: boolean;
   showInNavbar?: boolean;
@@ -61,7 +63,7 @@ type ApiCategory = {
   productCount?: number;
 };
 
-const DEFAULT_DISCOUNT = 10; // fallback discount percent if none provided
+const DEFAULT_DISCOUNT = 10;
 
 function computeDiscount(price: number, discountPercent: number) {
   const finalPrice = Math.round(price * (1 - discountPercent / 100));
@@ -71,19 +73,18 @@ function computeDiscount(price: number, discountPercent: number) {
 
 function mapDbToProduct(p: ProductDB): MappedProduct {
   const discountPercent = p.discount ?? DEFAULT_DISCOUNT;
-  const { finalPrice, originalPrice } = computeDiscount(p.price, discountPercent);
+  const { finalPrice, originalPrice } = computeDiscount(Number(p.price || 0), discountPercent);
 
   return {
     _id: p._id,
     name: p.name,
     price: finalPrice,
-    originalPrice: originalPrice,
-    discountPercent: discountPercent,
+    originalPrice,
+    discountPercent,
     image: p.image,
     inStock: (p.quantity ?? 0) > 0 && p.availability?.toLowerCase() !== "out of stock",
     color: p.color,
     material: p.material,
-    // optional for ProductCard extras
     rating: 0,
     reviews: 0,
     tags: [],
@@ -91,7 +92,12 @@ function mapDbToProduct(p: ProductDB): MappedProduct {
   };
 }
 
-const norm = (s?: string) => String(s || "").trim().toLowerCase();
+const norm = (s?: string | null) => String(s || "").trim().toLowerCase();
+
+const getCatId = (c?: ApiCategory | null) => String(c?._id || c?.id || "");
+
+const getParentId = (c?: ApiCategory | null) =>
+  String(c?.parentId || c?.parent || c?.parentCategory || "");
 
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -138,13 +144,22 @@ export default function Products() {
         const j1 = await r1.json().catch(() => ({}));
         const j2 = await r2.json().catch(() => ({}));
 
-        const a1: ApiCategory[] = Array.isArray(j1) ? j1 : j1?.data?.items || [];
-        const a2: ApiCategory[] = Array.isArray(j2) ? j2 : j2?.data?.items || [];
+        const a1: ApiCategory[] = Array.isArray(j1) ? j1 : j1?.data?.items || j1?.data || [];
+        const a2: ApiCategory[] = Array.isArray(j2) ? j2 : j2?.data?.items || j2?.data || [];
 
         const map = new Map<string, ApiCategory>();
+
         [...a1, ...a2].forEach((c) => {
           if (!c?.slug) return;
-          map.set(c.slug, c);
+
+          const id = getCatId(c);
+          const key = id || c.slug;
+
+          map.set(key, {
+            ...c,
+            id: c.id || c._id,
+            _id: c._id || c.id,
+          });
         });
 
         let merged = Array.from(map.values());
@@ -155,7 +170,7 @@ export default function Products() {
             if (typeof c.showOnWebsite === "boolean" && !c.showOnWebsite) return false;
             if (typeof c.showInNavbar === "boolean" && !c.showInNavbar) return false;
             const seg = norm(c.segment);
-            if (seg !== "all" && seg !== "midrange") return false;
+            if (seg && seg !== "all" && seg !== "midrange") return false;
             return true;
           })
           .sort(
@@ -175,7 +190,9 @@ export default function Products() {
     fetchCats();
   }, []);
 
-  const parentCats = useMemo(() => cats.filter((c) => !c.parentId), [cats]);
+  const parentCats = useMemo(() => {
+    return cats.filter((c) => !getParentId(c));
+  }, [cats]);
 
   const selectedParentObj = useMemo(() => {
     if (!selectedCategory) return null;
@@ -184,8 +201,11 @@ export default function Products() {
 
   const subCatsOfSelected = useMemo(() => {
     if (!selectedParentObj) return [];
+
+    const parentId = getCatId(selectedParentObj);
+
     return cats
-      .filter((c) => String(c.parentId) === String(selectedParentObj.id))
+      .filter((c) => getParentId(c) === parentId)
       .sort(
         (a, b) =>
           Number(a.order || 0) - Number(b.order || 0) ||
@@ -203,7 +223,9 @@ export default function Products() {
 
         const qs = new URLSearchParams();
         if (selectedCategory) qs.set("category", selectedCategory);
-        if (selectedCategory && selectedSubcategory) qs.set("subcategory", selectedSubcategory);
+        if (selectedCategory && selectedSubcategory) {
+          qs.set("subcategory", selectedSubcategory);
+        }
 
         const url = qs.toString() ? `${API_PRODUCTS}?${qs.toString()}` : API_PRODUCTS;
 
@@ -217,6 +239,8 @@ export default function Products() {
         const json = await res.json().catch(() => ({}));
         const list: ProductDB[] = Array.isArray(json?.data)
           ? json.data
+          : Array.isArray(json?.data?.items)
+          ? json.data.items
           : Array.isArray(json?.products)
           ? json.products
           : Array.isArray(json)
@@ -271,8 +295,10 @@ export default function Products() {
     const next = new URLSearchParams(searchParams);
     if (cat) next.set("cat", cat);
     else next.delete("cat");
+
     if (sub) next.set("sub", sub);
     else next.delete("sub");
+
     setSearchParams(next, { replace: true });
   };
 
@@ -307,7 +333,6 @@ export default function Products() {
   return (
     <Layout>
       <div className="min-h-screen bg-[#556b2f] text-[#f4f7ec]">
-        {/* Breadcrumb */}
         <nav className="bg-[#4b5e29] py-3 border-b border-white/10">
           <div className="container mx-auto px-4">
             <div className="flex items-center gap-2 text-sm">
@@ -339,22 +364,17 @@ export default function Products() {
 
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col lg:flex-row gap-8">
-            {/* Filter Sidebar - Desktop */}
             <aside className="hidden lg:block w-64 flex-shrink-0">
               <div className="sticky top-24 bg-[#4b5e29] rounded-xl border border-white/10 p-5">
                 <div className="flex items-center justify-between mb-5">
                   <h3 className="font-semibold text-[#f4f7ec]">Filters</h3>
                   {activeFilters > 0 && (
-                    <button
-                      onClick={clearFilters}
-                      className="text-xs text-[#eef4df] hover:underline"
-                    >
+                    <button onClick={clearFilters} className="text-xs text-[#eef4df] hover:underline">
                       Clear all
                     </button>
                   )}
                 </div>
 
-                {/* Search */}
                 <div className="relative mb-5">
                   <Input
                     type="text"
@@ -366,7 +386,6 @@ export default function Products() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#d6dfbd]" />
                 </div>
 
-                {/* Category */}
                 <div className="mb-5">
                   <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
                     Category
@@ -378,14 +397,13 @@ export default function Products() {
                   >
                     <option value="">{catLoading ? "Loading..." : "All Categories"}</option>
                     {parentCats.map((cat) => (
-                      <option key={cat.id} value={cat.slug}>
+                      <option key={getCatId(cat) || cat.slug} value={cat.slug}>
                         {cat.name}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                {/* Subcategory */}
                 <div className="mb-5">
                   <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
                     Subcategory
@@ -404,14 +422,13 @@ export default function Products() {
                         : "No subcategories"}
                     </option>
                     {subCatsOfSelected.map((sub) => (
-                      <option key={sub.id} value={sub.slug}>
+                      <option key={getCatId(sub) || sub.slug} value={sub.slug}>
                         {sub.name}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                {/* Material */}
                 <div className="mb-5">
                   <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
                     Material
@@ -430,7 +447,6 @@ export default function Products() {
                   </select>
                 </div>
 
-                {/* Color */}
                 <div className="mb-5">
                   <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
                     Color
@@ -463,7 +479,6 @@ export default function Products() {
               </div>
             </aside>
 
-            {/* Mobile Filter Button */}
             <div className="lg:hidden flex items-center justify-between mb-4">
               <p className="text-[#d6dfbd] text-sm">
                 {loading ? "Loading..." : `${filteredProducts.length} products`}
@@ -483,7 +498,6 @@ export default function Products() {
               </Button>
             </div>
 
-            {/* Mobile Filter Drawer */}
             {isFilterOpen && (
               <div className="fixed inset-0 z-50 lg:hidden">
                 <div
@@ -521,7 +535,7 @@ export default function Products() {
                       >
                         <option value="">{catLoading ? "Loading..." : "All Categories"}</option>
                         {parentCats.map((cat) => (
-                          <option key={cat.id} value={cat.slug}>
+                          <option key={getCatId(cat) || cat.slug} value={cat.slug}>
                             {cat.name}
                           </option>
                         ))}
@@ -546,7 +560,7 @@ export default function Products() {
                             : "No subcategories"}
                         </option>
                         {subCatsOfSelected.map((sub) => (
-                          <option key={sub.id} value={sub.slug}>
+                          <option key={getCatId(sub) || sub.slug} value={sub.slug}>
                             {sub.name}
                           </option>
                         ))}
@@ -609,7 +623,6 @@ export default function Products() {
               </div>
             )}
 
-            {/* Products Grid */}
             <div className="flex-1">
               <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl md:text-3xl font-bold text-[#f4f7ec]">{pageTitle}</h1>
