@@ -55,6 +55,7 @@ type ProductDB = {
   galleryImages?: string[];
   material?: string;
   color?: string | string[];
+  priceIncludesGst?: boolean;
   size?: string | string[];
   fabricTypes?: string[];
   extraPillows?: number;
@@ -555,27 +556,28 @@ const ProductDetail = () => {
     if (!uiProduct) return null;
 
     return {
-      id: uiProduct._id,
-      name: uiProduct.name,
-      category: uiProduct.category,
-      basePrice: uiProduct.basePrice,
-      price: originalPrice,
-      finalPrice: finalPrice,
-      discountPercent: uiProduct.discountPercent,
-      discountAmount: discountAmount,
-      gst: uiProduct.gst,
-      isCustomized: uiProduct.isCustomized,
-      image: uiProduct.image,
-      galleryImages: uiProduct.images,
-      material: uiProduct.material,
-      color: selectedColor || undefined,
-      size: selectedSize || undefined,
-      fabric: selectedFabric || undefined,
-      availability: inStock ? "In Stock" : "Out of Stock",
-      stockQty: displayStock,
-      description: uiProduct.description,
-      variantSku: selectedVariant?.sku,
-    };
+  id: uiProduct._id,
+  name: uiProduct.name,
+  category: uiProduct.category,
+  basePrice: uiProduct.basePrice,
+  price: originalPrice,
+  finalPrice: finalPrice,
+  discountPercent: uiProduct.discountPercent,
+  discountAmount: discountAmount,
+  gst: uiProduct.gst,
+  priceIncludesGst: productDb?.priceIncludesGst ?? true, // ✅ IMPORTANT
+  isCustomized: uiProduct.isCustomized,
+  image: uiProduct.image,
+  galleryImages: uiProduct.images,
+  material: uiProduct.material,
+  color: selectedColor || undefined,
+  size: selectedSize || undefined,
+  fabric: selectedFabric || undefined,
+  availability: inStock ? "In Stock" : "Out of Stock",
+  stockQty: displayStock,
+  description: uiProduct.description,
+  variantSku: selectedVariant?.sku,
+};
   };
 
   const getSelectedAttributes = () => {
@@ -969,12 +971,12 @@ const ProductDetail = () => {
                     </div>
 
                     <div className="flex">
-                      <span className="w-32 text-[#d6dfbd] text-sm">GST</span>
+  <span className="w-32 text-[#d6dfbd] text-sm">GST</span>
 
-                      <span className="text-[#f4f7ec] text-sm">
-                        {uiProduct.gst}%
-                      </span>
-                    </div>
+  <span className="text-[#f4f7ec] text-sm">
+    {uiProduct.gst}% {productDb?.priceIncludesGst ? "(Included)" : "(Excluded)"}
+  </span>
+</div>
 
                     <div className="flex">
                       <span className="w-32 text-[#d6dfbd] text-sm">

@@ -12,14 +12,13 @@ import { PhoneNumberModal } from "@/components/layout/PhoneNumberModal";
 // ✅ APIs
 const API_PRODUCTS = "https://api.jsgallor.com/api/midrange/products";
 const API_ADMIN = "https://api.jsgallor.com/api/admin";
-
-// ---------- types ----------
 type ProductDB = {
   _id: string;
   name: string;
   category: string;
   subcategory?: string;
   price: number;
+  discount?: number; // ✅ add this
   image: string;
   galleryImages?: string[];
   material?: string;
@@ -61,7 +60,6 @@ type ApiCategory = {
   imageUrl?: string;
 };
 
-const DISCOUNT_PERCENT = 10;
 
 function mapDbToUI(p: ProductDB): CartProduct {
   return {
@@ -70,7 +68,7 @@ function mapDbToUI(p: ProductDB): CartProduct {
     category: p.category,
     subcategory: p.subcategory,
     price: Number(p.price || 0),
-    discount: DISCOUNT_PERCENT,
+    discount: Number(p.discount || 0), // ✅ backend discount
     image: p.image,
     galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
     material: p.material,
