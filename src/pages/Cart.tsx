@@ -544,7 +544,6 @@ const Cart = () => {
                       className="grid grid-cols-1 md:grid-cols-12 gap-4 px-4 md:px-6 py-4 border-b border-white/10 last:border-b-0"
                     >
                       <div className="md:col-span-6 flex gap-4">
-                        <Link to={`/product/${product.id}`} className="flex-shrink-0">
                           <img
                             src={image}
                             alt={name}
@@ -554,14 +553,11 @@ const Cart = () => {
                                 "https://via.placeholder.com/80?text=No+Image";
                             }}
                           />
-                        </Link>
+                       
                         <div className="flex-1 min-w-0">
-                          <Link
-                            to={`/product/${product.id}`}
-                            className="font-medium text-[#f4f7ec] hover:text-[#eef4df] transition-colors line-clamp-1"
-                          >
+                          
                             {name}
-                          </Link>
+                          
                           <p className="text-sm text-[#d6dfbd]">{category}</p>
                           {hasDiscount && (
                             <div className="flex items-center gap-2 mt-1">
