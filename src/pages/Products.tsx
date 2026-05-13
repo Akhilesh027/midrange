@@ -7,16 +7,19 @@ import { ProductCard } from "@/components/products/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// ✅ products + categories APIs
+// API endpoints
 const API_PRODUCTS = "https://api.jsgallor.com/api/midrange/products";
 const API_ADMIN = "https://api.jsgallor.com/api/admin";
 
-// ---------- types ----------
+// Pagination settings
+const PRODUCTS_PER_PAGE = 12; // adjust as needed
+
+// ---------- types (unchanged) ----------
 type ProductDB = {
   _id: string;
   name: string;
-  category: string; // slug
-  subcategory?: string; // slug
+  category: string;
+  subcategory?: string;
   price: number;
   discount?: number;
   image: string;
@@ -93,11 +96,8 @@ function mapDbToProduct(p: ProductDB): MappedProduct {
 }
 
 const norm = (s?: string | null) => String(s || "").trim().toLowerCase();
-
 const getCatId = (c?: ApiCategory | null) => String(c?._id || c?.id || "");
-
-const getParentId = (c?: ApiCategory | null) =>
-  String(c?.parentId || c?.parent || c?.parentCategory || "");
+const getParentId = (c?: ApiCategory | null) => String(c?.parentId || c?.parent || c?.parentCategory || "");
 
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -114,6 +114,8 @@ export default function Products() {
   const [error, setError] = useState<string | null>(null);
 
   const [rawProducts, setRawProducts] = useState<ProductDB[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(urlCategory);
@@ -125,45 +127,42 @@ export default function Products() {
   const [cats, setCats] = useState<ApiCategory[]>([]);
   const [catLoading, setCatLoading] = useState(false);
 
+  // Sync selected category/subcategory with URL params
   useEffect(() => {
     setSelectedCategory(urlCategory);
     setSelectedSubcategory(urlSub);
   }, [urlCategory, urlSub]);
 
+  // Reset page when category or subcategory changes (so we start at page 1)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, selectedSubcategory]);
+
+  // Fetch categories
   useEffect(() => {
     const fetchCats = async () => {
       try {
         setCatLoading(true);
-
         const urls = [
           `${API_ADMIN}/categories?segment=all&status=active&level=all&sort=order&limit=200`,
           `${API_ADMIN}/categories?segment=midrange&status=active&level=all&sort=order&limit=200`,
         ];
-
         const [r1, r2] = await Promise.all(urls.map((u) => fetch(u)));
         const j1 = await r1.json().catch(() => ({}));
         const j2 = await r2.json().catch(() => ({}));
 
-        const a1: ApiCategory[] = Array.isArray(j1) ? j1 : j1?.data?.items || j1?.data || [];
-        const a2: ApiCategory[] = Array.isArray(j2) ? j2 : j2?.data?.items || j2?.data || [];
+        let a1: ApiCategory[] = Array.isArray(j1) ? j1 : j1?.data?.items || j1?.data || [];
+        let a2: ApiCategory[] = Array.isArray(j2) ? j2 : j2?.data?.items || j2?.data || [];
 
         const map = new Map<string, ApiCategory>();
-
         [...a1, ...a2].forEach((c) => {
           if (!c?.slug) return;
-
           const id = getCatId(c);
           const key = id || c.slug;
-
-          map.set(key, {
-            ...c,
-            id: c.id || c._id,
-            _id: c._id || c.id,
-          });
+          map.set(key, { ...c, id: c.id || c._id, _id: c._id || c.id });
         });
 
         let merged = Array.from(map.values());
-
         merged = merged
           .filter((c) => {
             if (c.status && c.status !== "active") return false;
@@ -173,11 +172,7 @@ export default function Products() {
             if (seg && seg !== "all" && seg !== "midrange") return false;
             return true;
           })
-          .sort(
-            (a, b) =>
-              Number(a.order || 0) - Number(b.order || 0) ||
-              a.name.localeCompare(b.name)
-          );
+          .sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || a.name.localeCompare(b.name));
 
         setCats(merged);
       } catch {
@@ -186,83 +181,86 @@ export default function Products() {
         setCatLoading(false);
       }
     };
-
     fetchCats();
   }, []);
 
-  const parentCats = useMemo(() => {
-    return cats.filter((c) => !getParentId(c));
-  }, [cats]);
-
-  const selectedParentObj = useMemo(() => {
-    if (!selectedCategory) return null;
-    return parentCats.find((p) => p.slug === selectedCategory) || null;
-  }, [parentCats, selectedCategory]);
-
+  const parentCats = useMemo(() => cats.filter((c) => !getParentId(c)), [cats]);
+  const selectedParentObj = useMemo(
+    () => parentCats.find((p) => p.slug === selectedCategory) || null,
+    [parentCats, selectedCategory]
+  );
   const subCatsOfSelected = useMemo(() => {
     if (!selectedParentObj) return [];
-
     const parentId = getCatId(selectedParentObj);
-
     return cats
       .filter((c) => getParentId(c) === parentId)
-      .sort(
-        (a, b) =>
-          Number(a.order || 0) - Number(b.order || 0) ||
-          a.name.localeCompare(b.name)
-      );
+      .sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || a.name.localeCompare(b.name));
   }, [cats, selectedParentObj]);
 
+  // Fetch products with pagination
   useEffect(() => {
     let alive = true;
-
     const fetchProducts = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const qs = new URLSearchParams();
-        if (selectedCategory) qs.set("category", selectedCategory);
-        if (selectedCategory && selectedSubcategory) {
-          qs.set("subcategory", selectedSubcategory);
-        }
+        const params = new URLSearchParams();
+        if (selectedCategory) params.set("category", selectedCategory);
+        if (selectedSubcategory) params.set("subcategory", selectedSubcategory);
+        params.set("page", String(currentPage));
+        params.set("limit", String(PRODUCTS_PER_PAGE));
 
-        const url = qs.toString() ? `${API_PRODUCTS}?${qs.toString()}` : API_PRODUCTS;
-
+        const url = `${API_PRODUCTS}?${params.toString()}`;
         const res = await fetch(url, { headers: { "Content-Type": "application/json" } });
+        if (!res.ok) throw new Error(await res.text() || "Failed to load products");
 
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || "Failed to load products");
+        const json = await res.json();
+
+        // Extract products array (supports multiple API shapes)
+        let list: ProductDB[] = [];
+        if (Array.isArray(json?.data)) list = json.data;
+        else if (Array.isArray(json?.data?.items)) list = json.data.items;
+        else if (Array.isArray(json?.products)) list = json.products;
+        else if (Array.isArray(json)) list = json;
+
+        // Extract pagination metadata (supports common names)
+        let total = 0;
+        let pages = 1;
+        if (json?.total !== undefined) total = Number(json.total);
+        else if (json?.totalCount !== undefined) total = Number(json.totalCount);
+        else if (json?.pagination?.total !== undefined) total = Number(json.pagination.total);
+
+        if (json?.totalPages !== undefined) pages = Number(json.totalPages);
+        else if (json?.pages !== undefined) pages = Number(json.pages);
+        else if (json?.pagination?.pages !== undefined) pages = Number(json.pagination.pages);
+        else if (total > 0) pages = Math.ceil(total / PRODUCTS_PER_PAGE);
+
+        if (alive) {
+          setRawProducts(list);
+          setTotalPages(pages > 0 ? pages : 1);
         }
-
-        const json = await res.json().catch(() => ({}));
-        const list: ProductDB[] = Array.isArray(json?.data)
-          ? json.data
-          : Array.isArray(json?.data?.items)
-          ? json.data.items
-          : Array.isArray(json?.products)
-          ? json.products
-          : Array.isArray(json)
-          ? json
-          : [];
-
-        if (alive) setRawProducts(list);
       } catch (e: any) {
         if (alive) setError(e?.message || "Something went wrong");
       } finally {
         if (alive) setLoading(false);
       }
     };
-
     fetchProducts();
-
-    return () => {
-      alive = false;
-    };
-  }, [selectedCategory, selectedSubcategory]);
+    return () => { alive = false; };
+  }, [selectedCategory, selectedSubcategory, currentPage]);
 
   const products = useMemo(() => rawProducts.map(mapDbToProduct), [rawProducts]);
+
+  // Client‑side filtering (search, material, color)
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesMaterial = !selectedMaterial || p.material === selectedMaterial;
+      const matchesColor = !selectedColor || p.color === selectedColor;
+      return matchesSearch && matchesMaterial && matchesColor;
+    });
+  }, [products, searchTerm, selectedMaterial, selectedColor]);
 
   const materials = useMemo(() => {
     const set = new Set(products.map((p) => p.material).filter(Boolean) as string[]);
@@ -274,31 +272,14 @@ export default function Products() {
     return Array.from(set).sort();
   }, [products]);
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesMaterial = !selectedMaterial || p.material === selectedMaterial;
-      const matchesColor = !selectedColor || p.color === selectedColor;
-      return matchesSearch && matchesMaterial && matchesColor;
-    });
-  }, [products, searchTerm, selectedMaterial, selectedColor]);
-
-  const activeFilters = [
-    selectedCategory,
-    selectedSubcategory,
-    selectedMaterial,
-    selectedColor,
-    searchTerm,
-  ].filter(Boolean).length;
+  const activeFilters = [selectedCategory, selectedSubcategory, selectedMaterial, selectedColor, searchTerm].filter(Boolean).length;
 
   const syncUrl = (cat: string, sub: string) => {
     const next = new URLSearchParams(searchParams);
     if (cat) next.set("cat", cat);
     else next.delete("cat");
-
     if (sub) next.set("sub", sub);
     else next.delete("sub");
-
     setSearchParams(next, { replace: true });
   };
 
@@ -308,6 +289,7 @@ export default function Products() {
     setSelectedMaterial("");
     setSelectedColor("");
     setSearchTerm("");
+    setCurrentPage(1);
     syncUrl("", "");
   };
 
@@ -330,40 +312,116 @@ export default function Products() {
     return "Our Collection";
   }, [selectedParentObj, selectedSubcategory, subCatsOfSelected]);
 
+  // Pagination helpers
+  const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    const pages = [];
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return (
+      <div className="flex justify-center items-center gap-2 mt-10">
+        <Button
+          variant="outline"
+          onClick={() => goToPage(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22] disabled:opacity-50"
+        >
+          Previous
+        </Button>
+        {startPage > 1 && (
+          <>
+            <Button
+              variant="outline"
+              onClick={() => goToPage(1)}
+              className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+            >
+              1
+            </Button>
+            {startPage > 2 && <span className="text-[#d6dfbd]">…</span>}
+          </>
+        )}
+        {pages.map((p) => (
+          <Button
+            key={p}
+            variant={p === currentPage ? "default" : "outline"}
+            onClick={() => goToPage(p)}
+            className={
+              p === currentPage
+                ? "bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]"
+                : "border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+            }
+          >
+            {p}
+          </Button>
+        ))}
+        {endPage < totalPages && (
+          <>
+            {endPage < totalPages - 1 && <span className="text-[#d6dfbd]">…</span>}
+            <Button
+              variant="outline"
+              onClick={() => goToPage(totalPages)}
+              className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
+            >
+              {totalPages}
+            </Button>
+          </>
+        )}
+        <Button
+          variant="outline"
+          onClick={() => goToPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22] disabled:opacity-50"
+        >
+          Next
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <Layout>
       <div className="min-h-screen bg-[#556b2f] text-[#f4f7ec]">
+        {/* Breadcrumb (unchanged) */}
         <nav className="bg-[#4b5e29] py-3 border-b border-white/10">
           <div className="container mx-auto px-4">
             <div className="flex items-center gap-2 text-sm">
-              <Link to="/" className="text-[#eef4df] hover:underline">
-                Home
-              </Link>
+              <Link to="/" className="text-[#eef4df] hover:underline">Home</Link>
               <ChevronRight className="w-4 h-4 text-[#d6dfbd]" />
               <span className="text-[#d6dfbd]">Products</span>
-              {selectedCategory ? (
+              {selectedCategory && (
+                <>
+                  <ChevronRight className="w-4 h-4 text-[#d6dfbd]" />
+                  <span className="text-[#d6dfbd]">{selectedParentObj?.name || selectedCategory}</span>
+                </>
+              )}
+              {selectedSubcategory && (
                 <>
                   <ChevronRight className="w-4 h-4 text-[#d6dfbd]" />
                   <span className="text-[#d6dfbd]">
-                    {selectedParentObj?.name || selectedCategory}
+                    {subCatsOfSelected.find((s) => s.slug === selectedSubcategory)?.name || selectedSubcategory}
                   </span>
                 </>
-              ) : null}
-              {selectedSubcategory ? (
-                <>
-                  <ChevronRight className="w-4 h-4 text-[#d6dfbd]" />
-                  <span className="text-[#d6dfbd]">
-                    {subCatsOfSelected.find((s) => s.slug === selectedSubcategory)?.name ||
-                      selectedSubcategory}
-                  </span>
-                </>
-              ) : null}
+              )}
             </div>
           </div>
         </nav>
 
         <div className="container mx-auto px-4 py-8">
           <div className="flex flex-col lg:flex-row gap-8">
+            {/* Sidebar filters (unchanged) */}
             <aside className="hidden lg:block w-64 flex-shrink-0">
               <div className="sticky top-24 bg-[#4b5e29] rounded-xl border border-white/10 p-5">
                 <div className="flex items-center justify-between mb-5">
@@ -374,7 +432,6 @@ export default function Products() {
                     </button>
                   )}
                 </div>
-
                 <div className="relative mb-5">
                   <Input
                     type="text"
@@ -385,11 +442,8 @@ export default function Products() {
                   />
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#d6dfbd]" />
                 </div>
-
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
-                    Category
-                  </label>
+                  <label className="block text-sm font-medium text-[#f4f7ec] mb-2">Category</label>
                   <select
                     value={selectedCategory}
                     onChange={(e) => handleCategoryChange(e.target.value)}
@@ -397,17 +451,12 @@ export default function Products() {
                   >
                     <option value="">{catLoading ? "Loading..." : "All Categories"}</option>
                     {parentCats.map((cat) => (
-                      <option key={getCatId(cat) || cat.slug} value={cat.slug}>
-                        {cat.name}
-                      </option>
+                      <option key={getCatId(cat) || cat.slug} value={cat.slug}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
-
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
-                    Subcategory
-                  </label>
+                  <label className="block text-sm font-medium text-[#f4f7ec] mb-2">Subcategory</label>
                   <select
                     value={selectedSubcategory}
                     onChange={(e) => handleSubcategoryChange(e.target.value)}
@@ -415,257 +464,135 @@ export default function Products() {
                     className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none disabled:opacity-60"
                   >
                     <option value="">
-                      {!selectedCategory
-                        ? "Select category first"
-                        : subCatsOfSelected.length
-                        ? "All Subcategories"
-                        : "No subcategories"}
+                      {!selectedCategory ? "Select category first" : subCatsOfSelected.length ? "All Subcategories" : "No subcategories"}
                     </option>
                     {subCatsOfSelected.map((sub) => (
-                      <option key={getCatId(sub) || sub.slug} value={sub.slug}>
-                        {sub.name}
-                      </option>
+                      <option key={getCatId(sub) || sub.slug} value={sub.slug}>{sub.name}</option>
                     ))}
                   </select>
                 </div>
-
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
-                    Material
-                  </label>
+                  <label className="block text-sm font-medium text-[#f4f7ec] mb-2">Material</label>
                   <select
                     value={selectedMaterial}
                     onChange={(e) => setSelectedMaterial(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
                   >
                     <option value="">All Materials</option>
-                    {materials.map((mat) => (
-                      <option key={mat} value={mat}>
-                        {mat}
-                      </option>
-                    ))}
+                    {materials.map((mat) => <option key={mat} value={mat}>{mat}</option>)}
                   </select>
                 </div>
-
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
-                    Color
-                  </label>
+                  <label className="block text-sm font-medium text-[#f4f7ec] mb-2">Color</label>
                   <select
                     value={selectedColor}
                     onChange={(e) => setSelectedColor(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
                   >
                     <option value="">All Colors</option>
-                    {colors.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
+                    {colors.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-
                 <Button
                   className="w-full bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]"
                   onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 >
                   Apply Filters
-                  {activeFilters > 0 && (
-                    <span className="ml-2 bg-[#3f4f22] text-[#eef4df] px-2 py-0.5 rounded text-xs">
-                      {activeFilters}
-                    </span>
-                  )}
+                  {activeFilters > 0 && <span className="ml-2 bg-[#3f4f22] text-[#eef4df] px-2 py-0.5 rounded text-xs">{activeFilters}</span>}
                 </Button>
               </div>
             </aside>
 
+            {/* Mobile filter drawer (unchanged) */}
             <div className="lg:hidden flex items-center justify-between mb-4">
-              <p className="text-[#d6dfbd] text-sm">
-                {loading ? "Loading..." : `${filteredProducts.length} products`}
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => setIsFilterOpen(true)}
-                className="gap-2 border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
-              >
+              <p className="text-[#d6dfbd] text-sm">{loading ? "Loading..." : `${filteredProducts.length} products`}</p>
+              <Button variant="outline" onClick={() => setIsFilterOpen(true)} className="gap-2 border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]">
                 <SlidersHorizontal className="w-4 h-4" />
                 Filters
-                {activeFilters > 0 && (
-                  <span className="bg-[#eef4df] text-[#3f4f22] px-2 py-0.5 rounded text-xs">
-                    {activeFilters}
-                  </span>
-                )}
+                {activeFilters > 0 && <span className="bg-[#eef4df] text-[#3f4f22] px-2 py-0.5 rounded text-xs">{activeFilters}</span>}
               </Button>
             </div>
-
             {isFilterOpen && (
               <div className="fixed inset-0 z-50 lg:hidden">
-                <div
-                  className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-                  onClick={() => setIsFilterOpen(false)}
-                />
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsFilterOpen(false)} />
                 <div className="absolute right-0 top-0 bottom-0 w-80 bg-[#4b5e29] border-l border-white/10 p-5 overflow-y-auto">
                   <div className="flex items-center justify-between mb-5">
                     <h3 className="font-semibold text-[#f4f7ec]">Filters</h3>
-                    <button onClick={() => setIsFilterOpen(false)}>
-                      <X className="w-5 h-5 text-[#d6dfbd]" />
-                    </button>
+                    <button onClick={() => setIsFilterOpen(false)}><X className="w-5 h-5 text-[#d6dfbd]" /></button>
                   </div>
-
                   <div className="space-y-5">
                     <div className="relative">
-                      <Input
-                        type="text"
-                        placeholder="Search products..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 bg-[#3f4f22] border-[#5e7740] text-[#f7faef] placeholder:text-[#d5dfbb]"
-                      />
+                      <Input type="text" placeholder="Search products..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-[#3f4f22] border-[#5e7740] text-[#f7faef] placeholder:text-[#d5dfbb]" />
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#d6dfbd]" />
                     </div>
-
                     <div>
-                      <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
-                        Category
-                      </label>
-                      <select
-                        value={selectedCategory}
-                        onChange={(e) => handleCategoryChange(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
-                      >
+                      <label className="block text-sm font-medium text-[#f4f7ec] mb-2">Category</label>
+                      <select value={selectedCategory} onChange={(e) => handleCategoryChange(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none">
                         <option value="">{catLoading ? "Loading..." : "All Categories"}</option>
-                        {parentCats.map((cat) => (
-                          <option key={getCatId(cat) || cat.slug} value={cat.slug}>
-                            {cat.name}
-                          </option>
-                        ))}
+                        {parentCats.map((cat) => <option key={getCatId(cat) || cat.slug} value={cat.slug}>{cat.name}</option>)}
                       </select>
                     </div>
-
                     <div>
-                      <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
-                        Subcategory
-                      </label>
-                      <select
-                        value={selectedSubcategory}
-                        onChange={(e) => handleSubcategoryChange(e.target.value)}
-                        disabled={!selectedCategory || subCatsOfSelected.length === 0}
-                        className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none disabled:opacity-60"
-                      >
-                        <option value="">
-                          {!selectedCategory
-                            ? "Select category first"
-                            : subCatsOfSelected.length
-                            ? "All Subcategories"
-                            : "No subcategories"}
-                        </option>
-                        {subCatsOfSelected.map((sub) => (
-                          <option key={getCatId(sub) || sub.slug} value={sub.slug}>
-                            {sub.name}
-                          </option>
-                        ))}
+                      <label className="block text-sm font-medium text-[#f4f7ec] mb-2">Subcategory</label>
+                      <select value={selectedSubcategory} onChange={(e) => handleSubcategoryChange(e.target.value)} disabled={!selectedCategory || subCatsOfSelected.length === 0} className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none disabled:opacity-60">
+                        <option value="">{!selectedCategory ? "Select category first" : subCatsOfSelected.length ? "All Subcategories" : "No subcategories"}</option>
+                        {subCatsOfSelected.map((sub) => <option key={getCatId(sub) || sub.slug} value={sub.slug}>{sub.name}</option>)}
                       </select>
                     </div>
-
                     <div>
-                      <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
-                        Material
-                      </label>
-                      <select
-                        value={selectedMaterial}
-                        onChange={(e) => setSelectedMaterial(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
-                      >
+                      <label className="block text-sm font-medium text-[#f4f7ec] mb-2">Material</label>
+                      <select value={selectedMaterial} onChange={(e) => setSelectedMaterial(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none">
                         <option value="">All Materials</option>
-                        {materials.map((mat) => (
-                          <option key={mat} value={mat}>
-                            {mat}
-                          </option>
-                        ))}
+                        {materials.map((mat) => <option key={mat} value={mat}>{mat}</option>)}
                       </select>
                     </div>
-
                     <div>
-                      <label className="block text-sm font-medium text-[#f4f7ec] mb-2">
-                        Color
-                      </label>
-                      <select
-                        value={selectedColor}
-                        onChange={(e) => setSelectedColor(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none"
-                      >
+                      <label className="block text-sm font-medium text-[#f4f7ec] mb-2">Color</label>
+                      <select value={selectedColor} onChange={(e) => setSelectedColor(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#3f4f22] border border-[#5e7740] text-[#f7faef] focus:border-[#eef4df] focus:outline-none">
                         <option value="">All Colors</option>
-                        {colors.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
+                        {colors.map((c) => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
-
                     <div className="flex gap-3">
-                      <Button
-                        variant="outline"
-                        onClick={clearFilters}
-                        className="flex-1 border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
-                      >
-                        Clear
-                      </Button>
-                      <Button
-                        className="flex-1 bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]"
-                        onClick={() => setIsFilterOpen(false)}
-                      >
-                        Apply
-                      </Button>
+                      <Button variant="outline" onClick={clearFilters} className="flex-1 border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]">Clear</Button>
+                      <Button className="flex-1 bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2]" onClick={() => setIsFilterOpen(false)}>Apply</Button>
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* Main content */}
             <div className="flex-1">
               <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl md:text-3xl font-bold text-[#f4f7ec]">{pageTitle}</h1>
-                <p className="hidden lg:block text-[#d6dfbd] text-sm">
-                  {loading ? "Loading..." : `${filteredProducts.length} products`}
-                </p>
+                <p className="hidden lg:block text-[#d6dfbd] text-sm">{loading ? "Loading..." : `${filteredProducts.length} products`}</p>
               </div>
 
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-300 rounded-lg p-4 mb-6">
-                  {error}
-                </div>
-              )}
+              {error && <div className="bg-red-500/10 border border-red-500/20 text-red-300 rounded-lg p-4 mb-6">{error}</div>}
 
               {loading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {Array.from({ length: 9 }).map((_, i) => (
+                  {Array.from({ length: PRODUCTS_PER_PAGE }).map((_, i) => (
                     <div key={i} className="h-[320px] rounded-xl bg-white/5 animate-pulse" />
                   ))}
                 </div>
               ) : filteredProducts.length === 0 ? (
                 <div className="text-center py-16">
                   <p className="text-[#d6dfbd] mb-4">No products found matching your filters.</p>
-                  <Button
-                    variant="outline"
-                    onClick={clearFilters}
-                    className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]"
-                  >
-                    Clear Filters
-                  </Button>
+                  <Button variant="outline" onClick={clearFilters} className="border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]">Clear Filters</Button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {filteredProducts.map((product, idx) => (
-                    <div
-                      key={product._id}
-                      className="animate-fade-in"
-                      style={{ animationDelay: `${idx * 0.05}s` }}
-                    >
-                      <ProductCard product={product} />
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {filteredProducts.map((product, idx) => (
+                      <div key={product._id} className="animate-fade-in" style={{ animationDelay: `${idx * 0.05}s` }}>
+                        <ProductCard product={product} />
+                      </div>
+                    ))}
+                  </div>
+                  {renderPagination()}
+                </>
               )}
             </div>
           </div>
