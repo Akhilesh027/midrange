@@ -445,34 +445,7 @@ export default function Index() {
           </div>
         </section>
 
-        {/* Newsletter */}
-        <section className="py-16 md:py-24 bg-[#3f4f22]">
-          <div className="container mx-auto px-4">
-            <div className="max-w-2xl mx-auto text-center">
-              <h2 className="text-2xl md:text-3xl font-bold text-[#f7faef] mb-4">
-                Stay Updated
-              </h2>
-              <p className="text-[#d6dfbd] mb-6">
-                Subscribe to get exclusive offers, design tips, and new arrivals
-                straight to your inbox.
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  className="flex-1 px-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:border-[#eef4df] focus:outline-none focus:ring-1 focus:ring-[#eef4df] text-[#f7faef] placeholder:text-[#d5dfbb]"
-                />
-                <Button
-                  size="lg"
-                  className="bg-[#eef4df] text-[#3f4f22] hover:bg-[#dde8c2] shadow-md"
-                >
-                  Subscribe
-                </Button>
-              </div>
-            </div>
-          </div>
-        </section>
+      
       </div>
 
       <PhoneNumberModal open={showPhoneModal} onOpenChange={setShowPhoneModal} />
