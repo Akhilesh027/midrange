@@ -30,8 +30,8 @@ export interface LegalPage {
 
 async function fetchWithToken(url: string, params: URLSearchParams): Promise<LegalPage | null> {
   const token = localStorage.getItem("token") ||
-                localStorage.getItem("adminToken") ||
-                localStorage.getItem("luxury_auth_token");
+    localStorage.getItem("adminToken") ||
+    localStorage.getItem("luxury_auth_token");
 
   const headers: HeadersInit = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;

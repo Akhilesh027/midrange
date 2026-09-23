@@ -198,10 +198,10 @@ function mapBackendProductToCartProduct(
     variantId: variant?._id || null,
     variantAttributes: variant
       ? {
-          size: variant.attributes?.size,
-          color: variant.attributes?.color,
-          fabric: variant.attributes?.fabric,
-        }
+        size: variant.attributes?.size,
+        color: variant.attributes?.color,
+        fabric: variant.attributes?.fabric,
+      }
       : undefined,
     deliveryTime: p.deliveryTime,
   };
@@ -309,13 +309,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (existing) {
         return prev.map((x) =>
           x.productId === cartProduct.id &&
-          (x.variantId || null) === (cartProduct.variantId || null)
+            (x.variantId || null) === (cartProduct.variantId || null)
             ? {
-                ...x,
-                quantity: x.quantity + addQty,
-                productSnapshot: cartProduct,
-                variantStock: variantStock ?? x.variantStock,
-              }
+              ...x,
+              quantity: x.quantity + addQty,
+              productSnapshot: cartProduct,
+              variantStock: variantStock ?? x.variantStock,
+            }
             : x
         );
       }

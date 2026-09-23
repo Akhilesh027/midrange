@@ -30,9 +30,9 @@ type OrderItem = {
   quantity: number;
   price?: number;
   finalPrice?: number;
-  productSnapshot?: { 
-    name?: string; 
-    image?: string; 
+  productSnapshot?: {
+    name?: string;
+    image?: string;
     price?: number;
     originalPrice?: number;
     discountPercent?: number;
@@ -69,7 +69,7 @@ type MidrangeOrder = {
   status: string;
   createdAt?: string;
   updatedAt?: string;
-  pricing?: { 
+  pricing?: {
     total?: number;
     subtotal?: number;
     discount?: number;
@@ -94,12 +94,12 @@ type MidrangeOrder = {
 const formatDate = (iso?: string) =>
   iso
     ? new Date(iso).toLocaleDateString("en-IN", {
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
     : "-";
 
 const formatPrice = (price: number) =>
@@ -140,13 +140,13 @@ const getColorName = (hex: string) => {
 };
 
 // Order Details Modal Component
-function OrderDetailsModal({ 
-  order, 
-  isOpen, 
-  onClose 
-}: { 
-  order: MidrangeOrder | null; 
-  isOpen: boolean; 
+function OrderDetailsModal({
+  order,
+  isOpen,
+  onClose
+}: {
+  order: MidrangeOrder | null;
+  isOpen: boolean;
   onClose: () => void;
 }) {
   if (!isOpen || !order) return null;
@@ -161,11 +161,11 @@ function OrderDetailsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-[#4b5e29] rounded-xl border border-white/10 shadow-2xl">
         {/* Header */}
@@ -215,7 +215,7 @@ function OrderDetailsModal({
                 const price = Number(item.finalPrice ?? item.price ?? item.productSnapshot?.price ?? 0);
                 const quantity = item.quantity || 1;
                 const variantAttributes = item.productSnapshot?.variantAttributes || item.attributes || {};
-                
+
                 return (
                   <div key={idx} className="flex gap-4 p-3 bg-white/5 rounded-lg border border-white/10">
                     <div className="w-20 h-20 rounded-lg overflow-hidden border border-white/10 bg-white/5 flex-shrink-0">
@@ -227,10 +227,10 @@ function OrderDetailsModal({
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="flex-1">
                       <p className="font-medium text-[#f4f7ec]">{name}</p>
-                      
+
                       {(variantAttributes.color || variantAttributes.size || variantAttributes.fabric) && (
                         <div className="flex flex-wrap gap-2 mt-1">
                           {variantAttributes.color && (
@@ -254,7 +254,7 @@ function OrderDetailsModal({
                           )}
                         </div>
                       )}
-                      
+
                       <div className="flex items-center justify-between mt-2">
                         <p className="text-sm text-[#d6dfbd]">Qty: {quantity}</p>
                         <p className="font-semibold text-[#f4f7ec]">{formatPrice(price * quantity)}</p>
@@ -305,11 +305,10 @@ function OrderDetailsModal({
                 </div>
                 <div className="flex justify-between mt-2">
                   <span className="text-[#d6dfbd]">Status</span>
-                  <span className={`font-medium ${
-                    order.payment.status?.toLowerCase() === 'paid' 
-                      ? 'text-green-300' 
-                      : 'text-yellow-300'
-                  }`}>
+                  <span className={`font-medium ${order.payment.status?.toLowerCase() === 'paid'
+                    ? 'text-green-300'
+                    : 'text-yellow-300'
+                    }`}>
                     {order.payment.status?.toUpperCase() || "-"}
                   </span>
                 </div>

@@ -80,7 +80,7 @@ const ResetPassword = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#4f622b] via-[#556b2f] to-[#3f4f22] flex flex-col md:flex-row">
-      
+
       {/* LEFT SIDE */}
       <div className="md:w-1/2 bg-[#2e3a1f] flex items-center justify-center p-8">
         <div className="text-center text-white max-w-md">
@@ -96,7 +96,7 @@ const ResetPassword = () => {
       <div className="md:w-1/2 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="bg-[#4b5e29] rounded-xl border border-white/10 p-6 md:p-8 shadow-xl">
-            
+
             <h2 className="text-2xl font-bold text-[#f4f7ec] mb-2">
               Create New Password
             </h2>

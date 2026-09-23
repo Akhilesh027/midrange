@@ -581,12 +581,12 @@ export default function Checkout() {
           payment:
             paymentMethod === "ONLINE"
               ? {
-                  gateway: "razorpay",
-                  status: "paid",
-                  razorpayOrderId: razorpay.razorpay_order_id,
-                  razorpayPaymentId: razorpay.razorpay_payment_id,
-                  razorpaySignature: razorpay.razorpay_signature,
-                }
+                gateway: "razorpay",
+                status: "paid",
+                razorpayOrderId: razorpay.razorpay_order_id,
+                razorpayPaymentId: razorpay.razorpay_payment_id,
+                razorpaySignature: razorpay.razorpay_signature,
+              }
               : { status: "pending" },
 
           pricing: {
@@ -789,22 +789,20 @@ export default function Checkout() {
                   <div key={s.id} className="flex-1 flex items-center gap-3 w-full md:w-auto">
                     <button
                       onClick={() => handleStepChange(s.id)}
-                      className={`w-9 h-9 rounded-full flex items-center justify-center border transition-colors flex-shrink-0 ${
-                        done
-                          ? "bg-[#eef4df] text-[#3f4f22] border-[#eef4df] cursor-pointer"
-                          : active
-                            ? "border-[#eef4df] text-[#eef4df] cursor-pointer"
-                            : "border-white/20 text-[#d6dfbd] cursor-pointer"
-                      }`}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center border transition-colors flex-shrink-0 ${done
+                        ? "bg-[#eef4df] text-[#3f4f22] border-[#eef4df] cursor-pointer"
+                        : active
+                          ? "border-[#eef4df] text-[#eef4df] cursor-pointer"
+                          : "border-white/20 text-[#d6dfbd] cursor-pointer"
+                        }`}
                     >
                       {done ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                     </button>
 
                     <div className="min-w-0 flex-1">
                       <p
-                        className={`text-sm font-semibold ${
-                          active || done ? "text-[#f4f7ec]" : "text-[#d6dfbd]"
-                        }`}
+                        className={`text-sm font-semibold ${active || done ? "text-[#f4f7ec]" : "text-[#d6dfbd]"
+                          }`}
                       >
                         Step {s.id}
                       </p>
@@ -866,11 +864,10 @@ export default function Checkout() {
                       {addresses.map((a) => (
                         <div
                           key={a._id}
-                          className={`block p-3 md:p-4 rounded-lg border transition-colors ${
-                            selectedAddressId === a._id
-                              ? "border-[#eef4df] bg-[#eef4df]/10"
-                              : "border-white/10 hover:bg-white/10"
-                          }`}
+                          className={`block p-3 md:p-4 rounded-lg border transition-colors ${selectedAddressId === a._id
+                            ? "border-[#eef4df] bg-[#eef4df]/10"
+                            : "border-white/10 hover:bg-white/10"
+                            }`}
                         >
                           <div className="flex flex-row items-start gap-3">
                             <input
@@ -1006,11 +1003,10 @@ export default function Checkout() {
                     {(["COD", "ONLINE"] as const).map((m) => (
                       <label
                         key={m}
-                        className={`block p-4 rounded-lg border cursor-pointer transition-colors ${
-                          paymentMethod === m
-                            ? "border-[#eef4df] bg-[#eef4df]/10"
-                            : "border-white/10 hover:bg-white/10"
-                        }`}
+                        className={`block p-4 rounded-lg border cursor-pointer transition-colors ${paymentMethod === m
+                          ? "border-[#eef4df] bg-[#eef4df]/10"
+                          : "border-white/10 hover:bg-white/10"
+                          }`}
                       >
                         <div className="flex items-start gap-3">
                           <input

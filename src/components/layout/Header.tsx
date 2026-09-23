@@ -357,10 +357,10 @@ export const Header = () => {
                 {location.loading
                   ? "Detecting..."
                   : location.city
-                  ? location.city
-                  : location.error
-                  ? "Location off"
-                  : "Detect location"}
+                    ? location.city
+                    : location.error
+                      ? "Location off"
+                      : "Detect location"}
               </span>
             </button>
 
@@ -420,13 +420,12 @@ export const Header = () => {
                             <p className="text-xs text-[#cdbf9e] truncate">{user.email}</p>
                             <div className="flex items-center justify-between mt-2">
                               <span
-                                className={`text-xs px-2 py-1 rounded-full ${
-                                  level === "elite"
-                                    ? "bg-[#8f5cc2]/15 text-[#eadfff]"
-                                    : level === "premium"
+                                className={`text-xs px-2 py-1 rounded-full ${level === "elite"
+                                  ? "bg-[#8f5cc2]/15 text-[#eadfff]"
+                                  : level === "premium"
                                     ? "bg-[#d8a93a]/15 text-[#ffe8b3]"
                                     : "bg-[#f3deb0]/15 text-[#f3deb0]"
-                                }`}
+                                  }`}
                               >
                                 {badge} Member
                               </span>
@@ -454,7 +453,7 @@ export const Header = () => {
                             </span>
                           )}
                         </button>
-                        
+
                         {/* Mobile buttons */}
                         <div className="flex flex-col gap-2 mb-4">
                           <a
@@ -747,10 +746,10 @@ export const Header = () => {
                       {location.loading
                         ? "Detecting..."
                         : location.city
-                        ? location.city
-                        : location.error
-                        ? "Location off"
-                        : "Detect location"}
+                          ? location.city
+                          : location.error
+                            ? "Location off"
+                            : "Detect location"}
                     </span>
                   </button>
                 </div>
@@ -776,11 +775,10 @@ export const Header = () => {
                   <li key={parent.id} className="relative group">
                     <Link
                       to={parentHref(parent.slug)}
-                      className={`block px-4 py-3 text-sm font-medium transition-colors relative ${
-                        parentActive
-                          ? "text-[#ffe8b3]"
-                          : "text-[#f7ecd7] hover:text-[#ffe8b3]"
-                      }`}
+                      className={`block px-4 py-3 text-sm font-medium transition-colors relative ${parentActive
+                        ? "text-[#ffe8b3]"
+                        : "text-[#f7ecd7] hover:text-[#ffe8b3]"
+                        }`}
                     >
                       {parent.name}
                       {parentActive && (

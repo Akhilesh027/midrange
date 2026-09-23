@@ -8,6 +8,7 @@ import { ProductSlider } from "@/components/layout/ProductSlider";
 import IdeasSection from "./ideasection";
 import { useMidrangeAuth } from "@/context/MidrangeAuthContext";
 import { PhoneNumberModal } from "@/components/layout/PhoneNumberModal";
+import { HomeBannerSection } from "@/components/banners/HomeBannerSection";
 
 // ✅ APIs
 const API_PRODUCTS = "https://api.jsgallor.com/api/midrange/products";
@@ -124,10 +125,10 @@ export default function Index() {
         const list: ProductDB[] = Array.isArray(json?.data)
           ? json.data
           : Array.isArray(json?.products)
-          ? json.products
-          : Array.isArray(json)
-          ? json
-          : [];
+            ? json.products
+            : Array.isArray(json)
+              ? json
+              : [];
 
         const mapped = list.slice(0, 4).map(mapDbToUI);
         if (alive) setFeatured(mapped);
@@ -221,6 +222,9 @@ export default function Index() {
   return (
     <Layout>
       <div className="min-h-screen bg-[#556b2f] text-[#f4f7ec]">
+        {/* 1 Video & 2 Dual Banners Managed via Admin */}
+        <HomeBannerSection />
+
         {/* Hero */}
         <section className="relative overflow-hidden bg-gradient-to-br from-[#4f622b] via-[#556b2f] to-[#3f4f22]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.05),transparent_25%)]" />
@@ -228,8 +232,8 @@ export default function Index() {
             <div className="grid md:grid-cols-2 gap-8 items-center">
               <div className="space-y-6 animate-fade-in">
                 <span className="inline-block px-4 py-1.5 rounded-full bg-[#f3f6ea]/10 text-[#eef4df] text-sm font-medium border border-[#f3f6ea]/20 shadow-sm">
-                  New Collection 2026       
-                          </span>
+                  New Collection 2026
+                </span>
 
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#f8fbf2] leading-tight tracking-tight">
                   Mid-Range Furniture{" "}
@@ -445,7 +449,7 @@ export default function Index() {
           </div>
         </section>
 
-      
+
       </div>
 
       <PhoneNumberModal open={showPhoneModal} onOpenChange={setShowPhoneModal} />

@@ -414,11 +414,10 @@ export default function Profile() {
                         setActiveTab(tab.id as any);
                         if (tab.id === "orders") setOrdersPage(1);
                       }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                        activeTab === tab.id
-                          ? "bg-[#eef4df]/10 text-[#eef4df]"
-                          : "text-[#d6dfbd] hover:bg-white/10 hover:text-[#f4f7ec]"
-                      }`}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${activeTab === tab.id
+                        ? "bg-[#eef4df]/10 text-[#eef4df]"
+                        : "text-[#d6dfbd] hover:bg-white/10 hover:text-[#f4f7ec]"
+                        }`}
                     >
                       <tab.icon className="w-5 h-5" />
                       <span className="text-sm font-medium">{tab.label}</span>
@@ -696,9 +695,8 @@ export default function Profile() {
                       {addresses.map((a) => (
                         <div
                           key={a._id}
-                          className={`bg-[#4b5e29] rounded-xl border p-5 ${
-                            a.isDefault ? "border-[#eef4df]/50" : "border-white/10"
-                          }`}
+                          className={`bg-[#4b5e29] rounded-xl border p-5 ${a.isDefault ? "border-[#eef4df]/50" : "border-white/10"
+                            }`}
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-2">

@@ -592,7 +592,7 @@ const ProductDetail = () => {
 
                   {uiProduct.isCustomized && (
                     <div>
-                      <Button variant="outline" className="w-full border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]" onClick={() => window.open(`https://wa.me/917075848516?text=Hi, I'm interested in customizing this product:%0A%0A*Name:* ${encodeURIComponent(uiProduct.name)}%0A*ID:* ${uiProduct._id}%0A%0ACan you please share customization options?`, "_blank")}>✨ Customize This Product</Button>
+                      <Button variant="outline" className="w-full border-[#dce6c3] text-[#f3f7e8] bg-transparent hover:bg-[#eef4df] hover:text-[#3f4f22]" onClick={() => window.open(`https://wa.me/918143678491?text=Hi, I'm interested in customizing this product:%0A%0A*Name:* ${encodeURIComponent(uiProduct.name)}%0A*ID:* ${uiProduct._id}%0A%0ACan you please share customization options?`, "_blank")}>✨ Customize This Product</Button>
                       <p className="text-xs text-[#d6dfbd] mt-2">Choose size, color, fabric, and add personal touches.</p>
                     </div>
                   )}

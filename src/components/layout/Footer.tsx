@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Facebook, Instagram, Youtube, MapPin } from "lucide-react";
+import { Facebook, Instagram, Youtube, Linkedin, MapPin } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import logo from "../../Image/JSGALORE.png";
 
@@ -19,6 +19,14 @@ type ApiCategory = {
   showInNavbar?: boolean;
   order?: number;
 };
+
+const DEFAULT_CATEGORIES: ApiCategory[] = [
+  { name: "Living Room", slug: "living-room" },
+  { name: "Bedroom", slug: "bedroom" },
+  { name: "Dining & Kitchen", slug: "dining-room" },
+  { name: "Sofas & Seating", slug: "sofas" },
+  { name: "Storage & Wardrobes", slug: "wardrobes" },
+];
 
 const norm = (s?: string | null) => String(s || "").trim().toLowerCase();
 
@@ -100,7 +108,14 @@ export const Footer = () => {
   }, []);
 
   const footerCategories = useMemo(() => {
-    return cats.filter((cat) => !getParentId(cat)).slice(0, 5);
+    const rootCats = cats.filter((cat) => !getParentId(cat));
+    if (rootCats.length >= 5) {
+      return rootCats.slice(0, 5);
+    }
+    if (rootCats.length > 0) {
+      return rootCats;
+    }
+    return DEFAULT_CATEGORIES;
   }, [cats]);
 
   return (
@@ -155,24 +170,18 @@ export const Footer = () => {
           <div>
             <h4 className="text-[#f7ecd7] font-semibold mb-4">Categories</h4>
 
-            {catLoading ? (
-              <p className="text-[#cdbf9e] text-sm">Loading categories...</p>
-            ) : footerCategories.length === 0 ? (
-              <p className="text-[#cdbf9e] text-sm">No categories found</p>
-            ) : (
-              <ul className="space-y-2">
-                {footerCategories.map((cat) => (
-                  <li key={getCatId(cat)}>
-                    <Link
-                      to={`/categories/${cat.slug}`}
-                      className="text-[#cdbf9e] hover:text-[#ffe8b3] text-sm transition-colors"
-                    >
-                      {cat.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ul className="space-y-2">
+              {footerCategories.map((cat) => (
+                <li key={getCatId(cat)}>
+                  <Link
+                    to={`/categories/${cat.slug}`}
+                    className="text-[#cdbf9e] hover:text-[#ffe8b3] text-sm transition-colors block"
+                  >
+                    {cat.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
 
           <div>
@@ -184,6 +193,7 @@ export const Footer = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[#cdbf9e] hover:bg-[#f3deb0] hover:text-[#3f4f22] transition-all"
+                aria-label="Facebook"
               >
                 <Facebook className="w-5 h-5" />
               </a>
@@ -193,6 +203,7 @@ export const Footer = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[#cdbf9e] hover:bg-[#f3deb0] hover:text-[#3f4f22] transition-all"
+                aria-label="Instagram"
               >
                 <Instagram className="w-5 h-5" />
               </a>
@@ -202,14 +213,25 @@ export const Footer = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[#cdbf9e] hover:bg-[#f3deb0] hover:text-[#3f4f22] transition-all"
+                aria-label="YouTube"
               >
                 <Youtube className="w-5 h-5" />
+              </a>
+
+              <a
+                href="https://www.linkedin.com/company/jsgallor"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[#cdbf9e] hover:bg-[#f3deb0] hover:text-[#3f4f22] transition-all"
+                aria-label="LinkedIn"
+              >
+                <Linkedin className="w-5 h-5" />
               </a>
             </div>
 
             <p className="text-[#cdbf9e] text-sm leading-relaxed mb-4">
-              support@jsgallor.com <br />
-              +91 7075848516
+              info@jsgallor.com <br />
+              +91 81436 78491
             </p>
 
             <div className="space-y-3 text-sm text-[#cdbf9e]">

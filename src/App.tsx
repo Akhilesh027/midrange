@@ -51,7 +51,7 @@ const ScrollToTop = () => {
 
 // Floating WhatsApp component
 const FloatingWhatsApp = () => {
-  const whatsappNumber = "917075848516";
+  const whatsappNumber = "918143678491";
   const whatsappLink = `https://wa.me/${whatsappNumber}`;
   return (
     <a

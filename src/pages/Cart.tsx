@@ -544,20 +544,20 @@ const Cart = () => {
                       className="grid grid-cols-1 md:grid-cols-12 gap-4 px-4 md:px-6 py-4 border-b border-white/10 last:border-b-0"
                     >
                       <div className="md:col-span-6 flex gap-4">
-                          <img
-                            src={image}
-                            alt={name}
-                            className="w-20 h-20 rounded-lg object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src =
-                                "https://via.placeholder.com/80?text=No+Image";
-                            }}
-                          />
-                       
+                        <img
+                          src={image}
+                          alt={name}
+                          className="w-20 h-20 rounded-lg object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "https://via.placeholder.com/80?text=No+Image";
+                          }}
+                        />
+
                         <div className="flex-1 min-w-0">
-                          
-                            {name}
-                          
+
+                          {name}
+
                           <p className="text-sm text-[#d6dfbd]">{category}</p>
                           {hasDiscount && (
                             <div className="flex items-center gap-2 mt-1">
@@ -572,28 +572,28 @@ const Cart = () => {
                           {(variantAttributes.color ||
                             variantAttributes.size ||
                             variantAttributes.fabric) && (
-                            <div className="flex flex-wrap gap-2 mt-1 text-xs">
-                              {variantAttributes.color && (
-                                <span className="inline-flex items-center gap-1 bg-[#3f4f22] px-2 py-0.5 rounded-full">
-                                  <span
-                                    className="w-3 h-3 rounded-full"
-                                    style={{ backgroundColor: variantAttributes.color }}
-                                  />
-                                  {getColorName(variantAttributes.color)}
-                                </span>
-                              )}
-                              {variantAttributes.size && (
-                                <span className="bg-[#3f4f22] px-2 py-0.5 rounded-full">
-                                  Size: {variantAttributes.size}
-                                </span>
-                              )}
-                              {variantAttributes.fabric && (
-                                <span className="bg-[#3f4f22] px-2 py-0.5 rounded-full capitalize">
-                                  {variantAttributes.fabric}
-                                </span>
-                              )}
-                            </div>
-                          )}
+                              <div className="flex flex-wrap gap-2 mt-1 text-xs">
+                                {variantAttributes.color && (
+                                  <span className="inline-flex items-center gap-1 bg-[#3f4f22] px-2 py-0.5 rounded-full">
+                                    <span
+                                      className="w-3 h-3 rounded-full"
+                                      style={{ backgroundColor: variantAttributes.color }}
+                                    />
+                                    {getColorName(variantAttributes.color)}
+                                  </span>
+                                )}
+                                {variantAttributes.size && (
+                                  <span className="bg-[#3f4f22] px-2 py-0.5 rounded-full">
+                                    Size: {variantAttributes.size}
+                                  </span>
+                                )}
+                                {variantAttributes.fabric && (
+                                  <span className="bg-[#3f4f22] px-2 py-0.5 rounded-full capitalize">
+                                    {variantAttributes.fabric}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           <button
                             onClick={() => handleRemoveItem(item)}
                             className="mt-2 text-sm text-red-300 hover:underline flex items-center gap-1 md:hidden"

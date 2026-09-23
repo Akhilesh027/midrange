@@ -102,8 +102,8 @@ export default function SearchPage() {
             {!query.trim()
               ? "Enter a search term"
               : loading
-              ? "Loading products..."
-              : `Found ${filteredProducts.length} product${filteredProducts.length !== 1 ? "s" : ""} for "${query}"`}
+                ? "Loading products..."
+                : `Found ${filteredProducts.length} product${filteredProducts.length !== 1 ? "s" : ""} for "${query}"`}
           </div>
         </div>
 
