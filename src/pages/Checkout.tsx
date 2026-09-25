@@ -687,9 +687,9 @@ export default function Checkout() {
       throw new Error(createJson?.message || "Failed to create payment order");
     }
 
-    const serverAmountPaise = createJson.amount;
+    const serverAmountPaise = createJson.order?.amount;
     const expectedPaise = Math.round(amountInRupees * 100);
-    if (Math.abs(serverAmountPaise - expectedPaise) > 1) {
+    if (serverAmountPaise && Math.abs(serverAmountPaise - expectedPaise) > 1) {
       console.error("Amount mismatch:", { serverAmountPaise, expectedPaise });
       throw new Error("Order amount mismatch");
     }

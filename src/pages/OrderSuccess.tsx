@@ -63,7 +63,12 @@ export default function OrderSuccess() {
     })();
   }, [orderId]);
 
-  const totals = order?.totals || {};
+  const totals = order?.totals || order?.pricing || {};
+  const subtotal = Number(totals.subtotal || totals.subtotalBase || 0);
+  const discount = Number(totals.discount ?? totals.couponDiscount ?? 0);
+  const shipping = Number(totals.shipping ?? totals.shippingFinal ?? 0);
+  const tax = Number(totals.tax ?? 0);
+  const total = Number(totals.total ?? order?.totalAmount ?? 0);
   const address = order?.addressSnapshot || {};
   const items = order?.items || [];
 
@@ -136,7 +141,7 @@ export default function OrderSuccess() {
                   </span>{" "}
                   • Payment:{" "}
                   <span className="text-[#f4f7ec] font-medium">
-                    {order.payment?.method}
+                    {order.payment?.method || "COD"}
                   </span>
                 </p>
               </div>
@@ -150,66 +155,86 @@ export default function OrderSuccess() {
                 </div>
 
                 <div className="divide-y divide-white/10">
-                  {items.map((it: any) => (
-                    <div key={it.productId} className="p-4 flex gap-4">
-                      <img
-                        src={it.image}
-                        alt={it.name}
-                        className="w-20 h-20 rounded-lg object-cover bg-[#3f4f22]"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-[#f4f7ec] line-clamp-1">
-                          {it.name}
-                        </p>
-                        <p className="text-sm text-[#d6dfbd]">Qty: {it.quantity}</p>
-                        <p className="text-sm text-[#d6dfbd]">
-                          Price:{" "}
-                          <span className="text-[#f4f7ec]">
-                            {formatPrice(it.finalPrice)}
-                          </span>{" "}
-                          <span className="line-through ml-2">
-                            {formatPrice(it.price)}
-                          </span>
-                        </p>
+                  {items.map((it: any, idx: number) => {
+                    const itemUnitPrice = Number(it.finalPrice ?? it.price ?? 0);
+                    const itemOriginalPrice = Number(it.price ?? 0);
+                    const hasDiscount = itemOriginalPrice > itemUnitPrice && Number(it.discountPercent || 0) > 0;
+                    const itemTotal = itemUnitPrice * (Number(it.quantity) || 1);
+
+                    return (
+                      <div key={it.productId || idx} className="p-4 flex gap-4 items-center">
+                        <img
+                          src={it.image}
+                          alt={it.name}
+                          className="w-20 h-20 rounded-lg object-cover bg-[#3f4f22] border border-white/10"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-[#f4f7ec] line-clamp-1">
+                            {it.name}
+                          </p>
+                          <p className="text-sm text-[#d6dfbd] mt-0.5">Qty: {it.quantity}</p>
+                          <p className="text-sm text-[#d6dfbd] mt-0.5 flex items-center gap-1.5">
+                            <span>Price:</span>
+                            <span className="text-[#f4f7ec] font-medium">
+                              {formatPrice(itemUnitPrice)}
+                            </span>
+                            {hasDiscount && (
+                              <span className="line-through text-white/50 text-xs">
+                                {formatPrice(itemOriginalPrice)}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="font-semibold text-[#eef4df] text-base">
+                          {formatPrice(itemTotal)}
+                        </div>
                       </div>
-                      <div className="font-semibold text-[#eef4df]">
-                        {formatPrice(it.finalPrice * it.quantity)}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Summary */}
-              <div className="bg-[#4b5e29] border border-white/10 rounded-xl p-5">
-                <h2 className="font-semibold text-[#f4f7ec] mb-4">Summary</h2>
+              <div className="bg-[#4b5e29] border border-white/10 rounded-xl p-5 h-fit">
+                <h2 className="font-semibold text-[#f4f7ec] mb-4">Price Summary</h2>
 
-                <div className="space-y-2 text-sm">
+                <div className="space-y-2.5 text-sm">
                   <div className="flex justify-between">
                     <span className="text-[#d6dfbd]">Subtotal</span>
-                    <span className="text-[#f4f7ec]">
-                      {formatPrice(totals.subtotal || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#d6dfbd]">Shipping</span>
-                    <span className="text-[#f4f7ec]">
-                      {totals.shipping === 0
-                        ? "Free"
-                        : formatPrice(totals.shipping || 0)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#d6dfbd]">Tax</span>
-                    <span className="text-[#f4f7ec]">
-                      {formatPrice(totals.tax || 0)}
+                    <span className="text-[#f4f7ec] font-medium">
+                      {formatPrice(subtotal)}
                     </span>
                   </div>
 
+                  {discount > 0 && (
+                    <div className="flex justify-between text-emerald-300">
+                      <span>
+                        Discount {order?.coupon?.code ? `(${order.coupon.code})` : ""}
+                      </span>
+                      <span className="font-medium">-{formatPrice(discount)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between">
+                    <span className="text-[#d6dfbd]">Shipping</span>
+                    <span className="text-[#f4f7ec] font-medium">
+                      {shipping === 0 ? "Free" : formatPrice(shipping)}
+                    </span>
+                  </div>
+
+                  {tax > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-[#d6dfbd]">Tax (GST 18%)</span>
+                      <span className="text-[#f4f7ec] font-medium">
+                        {formatPrice(tax)}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="border-t border-white/10 pt-3 mt-3 flex justify-between">
-                    <span className="font-semibold text-[#f4f7ec]">Total</span>
-                    <span className="font-bold text-[#eef4df]">
-                      {formatPrice(totals.total || 0)}
+                    <span className="font-semibold text-[#f4f7ec] text-base">Total</span>
+                    <span className="font-bold text-[#eef4df] text-lg">
+                      {formatPrice(total)}
                     </span>
                   </div>
                 </div>

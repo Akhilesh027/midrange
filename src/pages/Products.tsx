@@ -66,16 +66,14 @@ type ApiCategory = {
   productCount?: number;
 };
 
-const DEFAULT_DISCOUNT = 10;
-
 function computeDiscount(price: number, discountPercent: number) {
-  const finalPrice = Math.round(price * (1 - discountPercent / 100));
+  const finalPrice = discountPercent > 0 ? Math.round(price * (1 - discountPercent / 100)) : price;
   const originalPrice = price;
   return { finalPrice, originalPrice };
 }
 
 function mapDbToProduct(p: ProductDB): MappedProduct {
-  const discountPercent = p.discount ?? DEFAULT_DISCOUNT;
+  const discountPercent = Number(p.discount || 0);
   const { finalPrice, originalPrice } = computeDiscount(Number(p.price || 0), discountPercent);
 
   return {
